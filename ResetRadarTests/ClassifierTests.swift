@@ -59,6 +59,27 @@ final class ClassifierTests: XCTestCase {
         XCTAssertEqual(event.kind, .automaticReset)
     }
 
+    func testSeptemberCompletionPostAndSummaryAreNotNewLeads() throws {
+        let url = URL(string: "https://x.com/thsottiaux/status/2103911959544610829")!
+        let original = FeedItem(id: "2103911959544610829", title: "", body: "Resets all propagated. That will be all. Have a fantastic weekend.", url: url, publishedAt: fetched)
+        let summary = FeedItem(id: "summary", title: "Official Codex reset announcement — Sep 26, 2026", body: "Reset for every paid Codex and ChatGPT Work user, promised after a brief disruption and confirmed fully propagated that evening: ‘Resets all propagated. That will be all.’", url: url, publishedAt: fetched)
+        for (item, feed) in [(original, "codex-reset-json"), (summary, "codex-reset")] {
+            let event = try XCTUnwrap(classifier.classify(item, source: source(feed), fetchedAt: fetched))
+            XCTAssertEqual(event.state, .announcedComplete, feed)
+            XCTAssertEqual(event.kind, .automaticReset, feed)
+        }
+    }
+
+    @MainActor
+    func testUnconfirmedSavedLeadDoesNotAppearAsNewReset() throws {
+        let item = FeedItem(id: "old", title: "Codex reset announcement", body: "That will be all.", url: nil, publishedAt: fetched)
+        var legacy = try XCTUnwrap(classifier.classify(item, source: source("codex-reset"), fetchedAt: fetched))
+        legacy.kind = .lead
+        legacy.state = .unresolved
+        XCTAssertFalse(legacy.confirmedAnnouncement)
+        XCTAssertNil(MonitorModel.selectActiveEvent([legacy], now: fetched))
+    }
+
     func testUnrelatedStatusIncidentIsIgnored() {
         let item = FeedItem(id: "3", title: "Login incident resolved", body: "ChatGPT service restored", url: nil, publishedAt: fetched)
         XCTAssertNil(classifier.classify(item, source: source("openai-status"), fetchedAt: fetched))

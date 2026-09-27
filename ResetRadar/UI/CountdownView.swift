@@ -228,7 +228,7 @@ struct CountdownView: View {
                     HStack {
                         Text(historyTitle(item)).font(.system(size: 9, weight: .medium)).lineLimit(1)
                         Spacer()
-                        Text(Self.format(item.updatedAt, zoneID: model.preferences.displayTimeZone, locale: locale))
+                        Text(Self.format(item.bestEvidence?.publishedAt ?? item.updatedAt, zoneID: model.preferences.displayTimeZone, locale: locale))
                             .font(.system(size: 8)).foregroundStyle(.tertiary)
                     }
                 }
@@ -293,11 +293,17 @@ struct CountdownView: View {
     private var historyEvents: [ResetEvent] {
         model.events.filter { item in
             item.id != event?.id && [.announcedComplete, .expired, .used, .dismissed, .cancelled, .archived].contains(item.state)
-        }.sorted { $0.updatedAt > $1.updatedAt }
+        }.sorted { ($0.bestEvidence?.publishedAt ?? $0.updatedAt) > ($1.bestEvidence?.publishedAt ?? $1.updatedAt) }
     }
 
     private func historyTitle(_ event: ResetEvent) -> String {
-        let type = event.kind == .bankedResetGrant ? (locale == .zhHans ? "手动机会" : "Manual opportunity") : (locale == .zhHans ? "自动重置" : "Automatic reset")
+        let type: String
+        switch event.kind {
+        case .bankedResetGrant: type = locale == .zhHans ? "手动机会" : "Manual opportunity"
+        case .lead: type = locale == .zhHans ? "重置预告" : "Reset preview"
+        case .automaticReset: type = locale == .zhHans ? "自动重置" : "Automatic reset"
+        case .limitChange: type = locale == .zhHans ? "额度变更" : "Limit change"
+        }
         let state: String
         switch event.state {
         case .announcedComplete: state = locale == .zhHans ? "已确认" : "confirmed"

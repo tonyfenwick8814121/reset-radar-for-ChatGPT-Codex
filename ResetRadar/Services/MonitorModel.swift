@@ -50,6 +50,7 @@ final class MonitorModel: ObservableObject {
         if let grant = validGrants.first { return grant }
         return events.filter {
             $0.kind == .lead &&
+            $0.confirmedAnnouncement &&
             $0.state == .unresolved &&
             Self.isFreshUndated($0, now: now)
         }.sorted { $0.updatedAt > $1.updatedAt }.first

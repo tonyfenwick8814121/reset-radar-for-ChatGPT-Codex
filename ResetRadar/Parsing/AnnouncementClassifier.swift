@@ -12,10 +12,10 @@ struct AnnouncementClassifier {
         let postURL = originalURL ?? item.url
         let trustedAuthor = ["x.com", "twitter.com"].contains(postURL?.host?.lowercased() ?? "") &&
             postURL?.path.lowercased().hasPrefix("/thsottiaux/status/") == true && source.kind == .communityFeed
-        let explicitReset = lower.range(of: #"(?:reset (?:is |is also )?(?:landing|lands)|(?:limits|quotas) will reset|(?:we(?:'re| are| will)|i(?:'m| am| will)) (?:resetting|reset)|reset all propagated)"#, options: .regularExpression) != nil
+        let explicitReset = lower.range(of: #"(?:reset (?:is |is also )?(?:landing|lands)|(?:limits|quotas) will reset|(?:we(?:'re| are| will)|i(?:'m| am| will)) (?:resetting|reset)|resets? all propagated)"#, options: .regularExpression) != nil
         let promisedReset = trustedAuthor && lower.range(of: #"i promised a reset for (?:tuesday|today|tomorrow)"#, options: .regularExpression) != nil
         let grantRollout = trustedAuthor && lower.range(of: #"we (?:are|will be) loading a banked reset into all accounts of our plus, pro and business users"#, options: .regularExpression) != nil
-        let productWords = (trustedAuthor && explicitReset && (lower.contains("astra users") || lower.contains("reset all propagated"))) ||
+        let productWords = (trustedAuthor && explicitReset && (lower.contains("astra users") || lower.contains("reset all propagated") || lower.contains("resets all propagated"))) ||
             promisedReset || grantRollout || lower.contains("chatgpt") || lower.contains("codex") ||
             lower.contains("usage limit") || lower.contains("weekly limit")
         guard resetWords && productWords else { return nil }
@@ -26,14 +26,15 @@ struct AnnouncementClassifier {
         let isGrant = grantMarkers.contains { lower.contains($0) }
         let expiryMarkers = ["expires", "expiry", "valid until", "use by", "deadline", "失效", "到期"]
         let isGrantExpiry = isGrant && expiryMarkers.contains { lower.contains($0) }
-        let forwardMarkers = [" will ", "lands ", "landing ", "tomorrow", "later today", "end of day", "planned", "upcoming", "next hour"]
-        let isForwardLooking = forwardMarkers.contains { lower.contains($0) }
-        let completeMarkers = ["it is done", "already reset", "returned to 100%", "back to 100%", "reset propagated", "reset all propagated", "limits reset for", "usage reset for"]
+        let forwardMarkers = ["lands ", "landing ", "tomorrow", "later today", "end of day", "planned", "upcoming", "next hour"]
+        let isForwardLooking = forwardMarkers.contains { lower.contains($0) } ||
+            lower.range(of: #"\b(?:will|we'll) (?:be )?reset\b"#, options: .regularExpression) != nil
+        let completeMarkers = ["it is done", "already reset", "returned to 100%", "back to 100%", "reset propagated", "reset all propagated", "resets all propagated", "limits reset for", "usage reset for"]
         let cancelMarkers = ["cancelled", "canceled", "will not happen", "called off", "no longer planned", "预告取消", "不会重置"]
         let uncertaintyMarkers = ["probability", "chance of", "forecast", "prediction", "rumor", "rumour", "maybe", "might", "could reset", "if we", "would reset", "wish", "hoping", "please reset", "likely", "unlikely", "joke", "no reset is planned", "可能性", "预测", "传闻"]
         let isCancelled = cancelMarkers.contains { lower.contains($0) }
         let isUncertain = uncertaintyMarkers.contains { lower.contains($0) }
-        let isComplete = !isForwardLooking && !isCancelled && !isUncertain && completeMarkers.contains { lower.contains($0) }
+        let isComplete = !isCancelled && !isUncertain && completeMarkers.contains { lower.contains($0) }
         let resolution = resolver.resolve(combined, publishedAt: item.publishedAt, verifiedContextZone: inferredContextZone(lower))
         var target: Date?
         var windowStart: Date?
@@ -80,7 +81,7 @@ struct AnnouncementClassifier {
                 precision = .unknown
             }
         }
-        let kind: ResetKind = isGrant ? .bankedResetGrant : ((isForwardLooking || promisedReset) && target == nil && !isCancelled && !isUncertain ? .lead : .automaticReset)
+        let kind: ResetKind = isGrant ? .bankedResetGrant : ((isForwardLooking || promisedReset) && target == nil && !isComplete && !isCancelled && !isUncertain ? .lead : .automaticReset)
         let hash = SHA256.hash(data: Data(combined.utf8)).map { String(format: "%02x", $0) }.joined()
         let canonical = canonicalID(item, originalURL: originalURL)
         let evidence = Evidence(

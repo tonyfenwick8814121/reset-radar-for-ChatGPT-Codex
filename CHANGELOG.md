@@ -1,5 +1,13 @@
 # 版本记录 · Changelog
 
+## 0.2.4 — 2026-09-28
+
+- 修复“Resets all propagated. That will be all.”被误显示为新重置预告；完成公告优先按已完成处理。
+- 旧版保存的未确认预告不再占据主窗口；最近记录显示原帖日期并区分预告与重置。
+
+- Fixed a completed reset post being displayed as a new upcoming reset because of “That will be all.”
+- Previously saved unconfirmed leads no longer occupy the main window; recent history uses the post date and distinguishes previews from resets.
+
 ## 0.2.3 — 2026-09-23
 
 - 修复 GPT-6 Sol 发布时，Tibo 原帖未写 Codex／ChatGPT 导致的手动重置机会漏报。
