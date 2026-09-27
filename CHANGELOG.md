@@ -1,5 +1,17 @@
 # 版本记录 · Changelog
 
+## 0.3.0 — 2026-09-28
+
+- 重写句子级判断：明确承诺即提醒，时间不确定时保留预告；过滤否定、疑问、教程与猜测。
+- 手动机会区分预告、发放中、可用与失效；受影响用户补发保留资格说明。
+- 完成公告只结束对应事件；原文优先于摘要，同一次机会的多帖更新不重复创建。
+- 发放、重置、失效时间分别解析；升级静默重评旧记录，保留用户处理状态。
+
+- Rebuilt sentence-level detection: explicit promises alert before precise timing is known; negation, questions, tutorials and speculation are filtered.
+- Banked-reset previews, rollouts, availability and expiry are distinct; compensation keeps eligibility information.
+- Completion closes the matching event; original evidence outranks summaries and related posts update one opportunity.
+- Availability, reset and expiry times are parsed separately; upgrades silently reassess old evidence while preserving user choices.
+
 ## 0.2.4 — 2026-09-28
 
 - 修复“Resets all propagated. That will be all.”被误显示为新重置预告；完成公告优先按已完成处理。

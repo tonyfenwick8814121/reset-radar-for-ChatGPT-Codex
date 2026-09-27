@@ -10,7 +10,7 @@ actor FeedClient {
 
     func fetch(_ source: FeedSource, previous: SourceStatus?) async throws -> FeedBatch {
         var request = URLRequest(url: source.url, cachePolicy: .reloadRevalidatingCacheData, timeoutInterval: 15)
-        request.setValue("ResetRadar/0.1 (+https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex)", forHTTPHeaderField: "User-Agent")
+        request.setValue("ResetRadar/0.3 (+https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex)", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json, application/rss+xml, application/atom+xml, application/xml, text/xml", forHTTPHeaderField: "Accept")
         if let etag = previous?.etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
         if let modified = previous?.lastModified { request.setValue(modified, forHTTPHeaderField: "If-Modified-Since") }

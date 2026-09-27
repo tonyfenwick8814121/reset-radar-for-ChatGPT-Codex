@@ -101,7 +101,9 @@ final class ClassifierTests: XCTestCase {
             }
         }
         let stranger = FeedItem(id: "stranger", title: "", body: body, url: URL(string: "https://x.com/stranger/status/123"), publishedAt: fetched)
-        XCTAssertNil(classifier.classify(stranger, source: source("modelyard"), fetchedAt: fetched))
+        let unverified = try XCTUnwrap(classifier.classify(stranger, source: source("modelyard"), fetchedAt: fetched))
+        XCTAssertFalse(unverified.confirmedAnnouncement)
+        XCTAssertFalse(MonitorModel().isActionable(unverified, now: fetched))
     }
 
     @MainActor

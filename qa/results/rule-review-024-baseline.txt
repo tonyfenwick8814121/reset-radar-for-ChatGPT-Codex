@@ -1,0 +1,172 @@
+[0/1] Planning build
+Building for debugging...
+[0/4] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.21s)
+Test Suite 'All tests' started at 2026-09-28 06:10:24.291.
+Test Suite 'ResetRadarPackageTests.xctest' started at 2026-09-28 06:10:24.293.
+Test Suite 'ClassifierTests' started at 2026-09-28 06:10:24.293.
+Test Case '-[ResetRadarTests.ClassifierTests testBankedResetIsNotAutomaticReset]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testBankedResetIsNotAutomaticReset]' passed (0.009 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testCancelledAndSpeculativeAnnouncementsDoNotSchedule]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testCancelledAndSpeculativeAnnouncementsDoNotSchedule]' passed (0.003 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testCompensationStillAlertsWithEligibility]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testCompensationStillAlertsWithEligibility]' passed (0.009 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testCompletedFeedEntryDoesNotBecomeFutureLead]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testCompletedFeedEntryDoesNotBecomeFutureLead]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testConfirmedAstraAnnouncementAlertsWithoutInventingTime]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testConfirmedAstraAnnouncementAlertsWithoutInventingTime]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testFeedIdentityAloneDoesNotProveCompletion]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testFeedIdentityAloneDoesNotProveCompletion]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testGrantAvailabilityDateDoesNotBecomeCountdown]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testGrantAvailabilityDateDoesNotBecomeCountdown]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testGrantExpiryUsesExpiresAtInsteadOfAutomaticTarget]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testGrantExpiryUsesExpiresAtInsteadOfAutomaticTarget]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testPublicFeedUsesOriginalTextAndRejectsStaleData]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testPublicFeedUsesOriginalTextAndRejectsStaleData]' passed (0.002 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testSeptemberCompletionPostAndSummaryAreNotNewLeads]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testSeptemberCompletionPostAndSummaryAreNotNewLeads]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testSolLaunchBankedResetIsAQualifiedRolloutAlert]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testSolLaunchBankedResetIsAQualifiedRolloutAlert]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testTrustedTuesdayPromiseAlertsWithoutPretendingItIsAGrant]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testTrustedTuesdayPromiseAlertsWithoutPretendingItIsAGrant]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testUnconfirmedSavedLeadDoesNotAppearAsNewReset]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testUnconfirmedSavedLeadDoesNotAppearAsNewReset]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ClassifierTests testUnrelatedStatusIncidentIsIgnored]' started.
+Test Case '-[ResetRadarTests.ClassifierTests testUnrelatedStatusIncidentIsIgnored]' passed (0.000 seconds).
+Test Suite 'ClassifierTests' passed at 2026-09-28 06:10:24.324.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.030 (0.031) seconds
+Test Suite 'CountdownTests' started at 2026-09-28 06:10:24.324.
+Test Case '-[ResetRadarTests.CountdownTests testCountdownRoundsUpAndNeverGoesNegative]' started.
+Test Case '-[ResetRadarTests.CountdownTests testCountdownRoundsUpAndNeverGoesNegative]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.CountdownTests testFormattingDoesNotMutateDate]' started.
+Test Case '-[ResetRadarTests.CountdownTests testFormattingDoesNotMutateDate]' passed (0.000 seconds).
+Test Suite 'CountdownTests' passed at 2026-09-28 06:10:24.325.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'MonitorModelTests' started at 2026-09-28 06:10:24.325.
+Test Case '-[ResetRadarTests.MonitorModelTests testAnnouncementAlreadyCompletedInNewestFirstFeedNeverAlerts]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testAnnouncementAlreadyCompletedInNewestFirstFeedNeverAlerts]' passed (0.018 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testCorrectedFutureTimeAlertsOnceThenStaysSilent]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testCorrectedFutureTimeAlertsOnceThenStaysSilent]' passed (0.026 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testExpiredManualEntryNeverTriggersDiscovery]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testExpiredManualEntryNeverTriggersDiscovery]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testFreshUndatedGrantTriggersDiscovery]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testFreshUndatedGrantTriggersDiscovery]' passed (0.008 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testHandledOpportunityStaysSilentAfterRefresh]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testHandledOpportunityStaysSilentAfterRefresh]' passed (0.043 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testIntervalAndPinDefaultsMigrateAndCooldownSurvivesChanges]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testIntervalAndPinDefaultsMigrateAndCooldownSurvivesChanges]' passed (0.004 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testManualGrantCanBeMarkedUsedAndReturnsToIdle]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testManualGrantCanBeMarkedUsedAndReturnsToIdle]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testOpportunityCancelledInSameBatchNeverTriggersDiscovery]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testOpportunityCancelledInSameBatchNeverTriggersDiscovery]' passed (0.012 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testOrdinaryFailuresUseOneMinuteFirstRetry]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testOrdinaryFailuresUseOneMinuteFirstRetry]' passed (0.003 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testPersistedOpportunityDoesNotRepeatDiscoveryOnRestart]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testPersistedOpportunityDoesNotRepeatDiscoveryOnRestart]' passed (0.205 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testRealAnnouncementPathAlertsOnceAndCompletionClearsIt]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testRealAnnouncementPathAlertsOnceAndCompletionClearsIt]' passed (0.022 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testRetryAfterAndManualRefreshRespectCooldown]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testRetryAfterAndManualRefreshRespectCooldown]' passed (0.005 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testRoutineChecksAndNonOpportunitiesNeverTriggerDiscovery]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testRoutineChecksAndNonOpportunitiesNeverTriggerDiscovery]' passed (0.087 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testSameOpportunityDoesNotAlertOnRepeatedChecks]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testSameOpportunityDoesNotAlertOnRepeatedChecks]' passed (0.029 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testStartReconcilesRemindersForPersistedFutureEvent]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testStartReconcilesRemindersForPersistedFutureEvent]' passed (0.006 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testTuesdayPromiseAloneAlertsOnce]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testTuesdayPromiseAloneAlertsOnce]' passed (0.009 seconds).
+Test Case '-[ResetRadarTests.MonitorModelTests testTuesdayPromiseAndBankedRolloutProduceOneDiscovery]' started.
+Test Case '-[ResetRadarTests.MonitorModelTests testTuesdayPromiseAndBankedRolloutProduceOneDiscovery]' passed (0.010 seconds).
+Test Suite 'MonitorModelTests' passed at 2026-09-28 06:10:24.815.
+	 Executed 17 tests, with 0 failures (0 unexpected) in 0.489 (0.490) seconds
+Test Suite 'PersistenceTests' started at 2026-09-28 06:10:24.815.
+Test Case '-[ResetRadarTests.PersistenceTests testCorruptPrimaryFallsBackToBackup]' started.
+Test Case '-[ResetRadarTests.PersistenceTests testCorruptPrimaryFallsBackToBackup]' passed (0.002 seconds).
+Test Case '-[ResetRadarTests.PersistenceTests testEventsWithoutTimeMeaningMigrate]' started.
+Test Case '-[ResetRadarTests.PersistenceTests testEventsWithoutTimeMeaningMigrate]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.PersistenceTests testOlderPreferencesKeepKnownValuesAndUseDefaultsForNewFields]' started.
+Test Case '-[ResetRadarTests.PersistenceTests testOlderPreferencesKeepKnownValuesAndUseDefaultsForNewFields]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.PersistenceTests testPreferencesRoundTrip]' started.
+Test Case '-[ResetRadarTests.PersistenceTests testPreferencesRoundTrip]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.PersistenceTests testRecoveredBackupSurvivesNextSave]' started.
+Test Case '-[ResetRadarTests.PersistenceTests testRecoveredBackupSurvivesNextSave]' passed (0.002 seconds).
+Test Case '-[ResetRadarTests.PersistenceTests testUnrecoverablePrimaryReportsIssueInsteadOfLookingLikeValidEmptyData]' started.
+Test Case '-[ResetRadarTests.PersistenceTests testUnrecoverablePrimaryReportsIssueInsteadOfLookingLikeValidEmptyData]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.PersistenceTests testUnsupportedPreferenceSchemaFallsBackToDefaults]' started.
+Test Case '-[ResetRadarTests.PersistenceTests testUnsupportedPreferenceSchemaFallsBackToDefaults]' passed (0.001 seconds).
+Test Suite 'PersistenceTests' passed at 2026-09-28 06:10:24.823.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.008 (0.008) seconds
+Test Suite 'ReconciliationTests' started at 2026-09-28 06:10:24.823.
+Test Case '-[ResetRadarTests.ReconciliationTests testAudienceAndExpiryCorrectionsPersist]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testAudienceAndExpiryCorrectionsPersist]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testConflictingTimesFromDifferentSourcesRequireReview]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testConflictingTimesFromDifferentSourcesRequireReview]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testCrossSourceConflictStaysUnresolvedWhenAThirdSourceAddsAnotherTime]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testCrossSourceConflictStaysUnresolvedWhenAThirdSourceAddsAnotherTime]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testCrossSourceEvidenceDoesNotDuplicateEvent]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testCrossSourceEvidenceDoesNotDuplicateEvent]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testExpiredGrantNeverRemainsActiveBecauseItWasPublishedRecently]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testExpiredGrantNeverRemainsActiveBecauseItWasPublishedRecently]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testFreshGrantWithoutExpiryIsVisibleBriefly]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testFreshGrantWithoutExpiryIsVisibleBriefly]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testGrantWithoutExpiryCannotBecomeActiveEvent]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testGrantWithoutExpiryCannotBecomeActiveEvent]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testLifecycleMovesAutomaticResetAndGrantToTerminalStates]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testLifecycleMovesAutomaticResetAndGrantToTerminalStates]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testRecentlyDueEventRemainsVisibleAtZero]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testRecentlyDueEventRemainsVisibleAtZero]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testSameTextFromDifferentSourcesRetainsBothProvenances]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testSameTextFromDifferentSourcesRetainsBothProvenances]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testTimeCorrectionIncrementsRevision]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testTimeCorrectionIncrementsRevision]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReconciliationTests testUndatedOpportunityArchives24HoursAfterDiscoveryWithoutReplayResurrection]' started.
+Test Case '-[ResetRadarTests.ReconciliationTests testUndatedOpportunityArchives24HoursAfterDiscoveryWithoutReplayResurrection]' passed (0.000 seconds).
+Test Suite 'ReconciliationTests' passed at 2026-09-28 06:10:24.825.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'ReminderPlannerTests' started at 2026-09-28 06:10:24.825.
+Test Case '-[ResetRadarTests.ReminderPlannerTests testDueTargetProducesNoFutureRequest]' started.
+Test Case '-[ResetRadarTests.ReminderPlannerTests testDueTargetProducesNoFutureRequest]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ReminderPlannerTests testOnlyFutureThresholdsAreScheduled]' started.
+Test Case '-[ResetRadarTests.ReminderPlannerTests testOnlyFutureThresholdsAreScheduled]' passed (0.000 seconds).
+Test Suite 'ReminderPlannerTests' passed at 2026-09-28 06:10:24.825.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'TimeResolverTests' started at 2026-09-28 06:10:24.825.
+Test Case '-[ResetRadarTests.TimeResolverTests testDSTGapAndRepeatAreUnresolved]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testDSTGapAndRepeatAreUnresolved]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.TimeResolverTests testInvalidMeridiemHourIsUnresolved]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testInvalidMeridiemHourIsUnresolved]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.TimeResolverTests testISO8601OffsetTimestampIsExact]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testISO8601OffsetTimestampIsExact]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.TimeResolverTests testPSTConflictInSummerIsUnresolved]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testPSTConflictInSummerIsUnresolved]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.TimeResolverTests testRelativeDateWithoutZoneIsUnresolved]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testRelativeDateWithoutZoneIsUnresolved]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.TimeResolverTests testSummerPT]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testSummerPT]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.TimeResolverTests testTomorrowUsesPublishedDateInSourceZone]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testTomorrowUsesPublishedDateInSourceZone]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.TimeResolverTests testWinterPT]' started.
+Test Case '-[ResetRadarTests.TimeResolverTests testWinterPT]' passed (0.000 seconds).
+Test Suite 'TimeResolverTests' passed at 2026-09-28 06:10:24.828.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'XMLFeedParserTests' started at 2026-09-28 06:10:24.828.
+Test Case '-[ResetRadarTests.XMLFeedParserTests testParsesAtomNamespaceAndHref]' started.
+Test Case '-[ResetRadarTests.XMLFeedParserTests testParsesAtomNamespaceAndHref]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.XMLFeedParserTests testParsesFractionalAtomDate]' started.
+Test Case '-[ResetRadarTests.XMLFeedParserTests testParsesFractionalAtomDate]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.XMLFeedParserTests testParsesRSSAndDecodesMarkup]' started.
+Test Case '-[ResetRadarTests.XMLFeedParserTests testParsesRSSAndDecodesMarkup]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.XMLFeedParserTests testPreservesNestedAtomText]' started.
+Test Case '-[ResetRadarTests.XMLFeedParserTests testPreservesNestedAtomText]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.XMLFeedParserTests testRejectsHTMLLoginPage]' started.
+Test Case '-[ResetRadarTests.XMLFeedParserTests testRejectsHTMLLoginPage]' passed (0.000 seconds).
+Test Suite 'XMLFeedParserTests' passed at 2026-09-28 06:10:24.830.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'ResetRadarPackageTests.xctest' passed at 2026-09-28 06:10:24.830.
+	 Executed 67 tests, with 0 failures (0 unexpected) in 0.533 (0.537) seconds
+Test Suite 'All tests' passed at 2026-09-28 06:10:24.830.
+	 Executed 67 tests, with 0 failures (0 unexpected) in 0.533 (0.539) seconds
+◇ Test run started.
+↳ Testing Library Version: 1501
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

@@ -19,12 +19,12 @@ struct TimeResolver {
     }
 
     private func resolveISO8601(_ text: String) -> Resolution? {
-        let pattern = #"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})"#
+        let pattern = #"(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})"#
         guard let match = captures(pattern, in: text)?.first else { return nil }
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let standard = ISO8601DateFormatter()
-        if let date = fractional.date(from: match) ?? standard.date(from: match) { return .exact(date) }
+        if let date = fractional.date(from: match.uppercased()) ?? standard.date(from: match.uppercased()) { return .exact(date) }
         return .unresolved("Invalid ISO 8601 timestamp")
     }
 
@@ -78,7 +78,8 @@ struct TimeResolver {
               let year = Int(values[1]), let month = Int(values[2]), let day = Int(values[3]),
               let hour = Int(values[4]), let minute = Int(values[5]),
               (0...23).contains(hour), (0...59).contains(minute),
-              let zone = TimeZone(identifier: values[6]) else { return nil }
+              let zoneName = TimeZone.knownTimeZoneIdentifiers.first(where: { $0.caseInsensitiveCompare(values[6]) == .orderedSame }),
+              let zone = TimeZone(identifier: zoneName) else { return nil }
         let candidates = matchingInstants(year: year, month: month, day: day, hour: hour, minute: minute, zone: zone)
         return candidates.count == 1 ? .exact(candidates[0]) : .unresolved("Local time is missing or repeated")
     }

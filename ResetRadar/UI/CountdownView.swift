@@ -118,7 +118,9 @@ struct CountdownView: View {
                 Text("\(prefix) · \(Self.format(target, zoneID: model.preferences.displayTimeZone, locale: locale)) · \(timeZoneLabel(for: target))")
             } else if event?.kind == .bankedResetGrant {
                 Text(event?.state == .unresolved
-                     ? (locale == .zhHans ? "Plus／Pro／Business 发放中 · 请在账号内核对" : "Rolling out to Plus / Pro / Business · Check your account")
+                     ? (event?.announcementStage == "preview"
+                        ? (locale == .zhHans ? "已宣布 · 等待发放，请核对适用范围" : "Announced · Awaiting distribution; check eligibility")
+                        : (locale == .zhHans ? "正在发放 · 请在账号内核对适用范围" : "Rolling out · Check eligibility in your account"))
                      : (event?.audience == "affected-reset-users" ? (locale == .zhHans ? "曾在故障期间使用重置的用户 · 请核对账号" : "For affected reset users · Check your account") : (locale == .zhHans ? "请核对账号是否可用 · 有效期未知" : "Check eligibility in your account · Expiry unknown")))
             } else if event?.kind == .lead {
                 Text(locale == .zhHans ? "重置时间或时区待确认" : "Reset time or time zone pending")
@@ -360,7 +362,11 @@ struct CountdownView: View {
         guard let event else { return Copy.text(.noAnnouncement, locale) }
         if event.kind == .bankedResetGrant {
             if event.audience == "affected-reset-users" { return locale == .zhHans ? "手动重置补偿 · 请核对资格" : "Reset compensation · Check eligibility" }
-            if event.state == .unresolved { return locale == .zhHans ? "手动重置机会发放中" : "Banked reset rolling out" }
+            if event.state == .unresolved {
+                return event.announcementStage == "preview"
+                    ? (locale == .zhHans ? "手动重置机会预告" : "Banked reset announced")
+                    : (locale == .zhHans ? "手动重置机会发放中" : "Banked reset rolling out")
+            }
             return event.expiresAt == nil
                 ? (locale == .zhHans ? "手动重置机会 · 有效期未知" : "Manual reset opportunity · Expiry unknown")
                 : (locale == .zhHans ? "手动重置机会 · 距失效" : "Manual reset opportunity · Expires in")

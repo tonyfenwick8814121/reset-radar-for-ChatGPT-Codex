@@ -5,7 +5,7 @@ import Foundation
 @MainActor
 final class MonitorModelTests: XCTestCase {
     func testRoutineChecksAndNonOpportunitiesNeverTriggerDiscovery() async {
-        for mode in [MonitorURLProtocol.Mode.empty, .serverError, .complete, .lead, .cancelled, .expiredGrant, .futureGrant] {
+        for mode in [MonitorURLProtocol.Mode.empty, .serverError, .complete, .cancelled, .expiredGrant] {
             MonitorURLProtocol.mode = mode
             let model = makeModel()
             var discoveries = 0
@@ -17,7 +17,7 @@ final class MonitorModelTests: XCTestCase {
     }
 
     func testSameOpportunityDoesNotAlertOnRepeatedChecks() async {
-        for mode in [MonitorURLProtocol.Mode.grant, .automatic] {
+        for mode in [MonitorURLProtocol.Mode.grant, .automatic, .lead, .futureGrant] {
             MonitorURLProtocol.mode = mode
             let model = makeModel()
             var discoveries = 0
@@ -202,7 +202,8 @@ final class MonitorModelTests: XCTestCase {
         XCTAssertEqual(discoveries.first?.kind, .bankedResetGrant)
         XCTAssertEqual(discoveries.first?.state, .unresolved)
         XCTAssertEqual(model.activeEvent?.audience, "paid-plans")
-        XCTAssertEqual(model.events.filter { $0.kind == .lead && $0.confirmedAnnouncement }.count, 1)
+        XCTAssertEqual(model.events.filter { $0.confirmedAnnouncement }.count, 1)
+        XCTAssertFalse(model.events.contains { $0.kind == .lead })
     }
 
     func testTuesdayPromiseAloneAlertsOnce() async {

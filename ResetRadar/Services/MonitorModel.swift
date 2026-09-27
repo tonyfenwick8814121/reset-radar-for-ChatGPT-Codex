@@ -31,6 +31,7 @@ final class MonitorModel: ObservableObject {
     }
 
     static func selectActiveEvent(_ events: [ResetEvent], now: Date) -> ResetEvent? {
+        let events = events.filter { $0.isConfirmedOpportunity }
         let future = events.filter { event in
             event.kind == .automaticReset && event.state == .scheduled && event.targetAt.map { $0 > now } == true
         }.sorted { ($0.targetAt ?? .distantFuture) < ($1.targetAt ?? .distantFuture) }
@@ -68,7 +69,8 @@ final class MonitorModel: ObservableObject {
         for index in events.indices {
             if events[index].countdownAt == nil,
                [.available, .unresolved].contains(events[index].state),
-               !Self.isFreshUndated(events[index], now: now) {
+               !Self.isFreshUndated(events[index], now: now),
+               !(events[index].reviewUntil.map { $0 > now } ?? false) {
                 events[index].state = .archived
                 events[index].updatedAt = now
                 changed = true
@@ -111,7 +113,7 @@ final class MonitorModel: ObservableObject {
             let loadedEvents = await savedEvents
             let loadedStatuses = await savedStatuses
             let loadedPreferences = await savedPreferences
-            events = loadedEvents.value
+            events = reclassifySavedEvents(loadedEvents.value)
             statuses = loadedStatuses.value
             preferences = loadedPreferences.value
             storageMessage = [loadedEvents.issue, loadedStatuses.issue, loadedPreferences.issue].compactMap { $0 }.joined(separator: " · ")
@@ -165,11 +167,15 @@ final class MonitorModel: ObservableObject {
                 }
                 guard !batch.notModified else { continue }
                 for item in batch.items.sorted(by: { ($0.freshnessDate ?? .distantPast) < ($1.freshnessDate ?? .distantPast) }) {
-                    guard let candidate = classifier.classify(item, source: source, fetchedAt: batch.fetchedAt) else { continue }
-                    if candidate.state == .announcedComplete || candidate.state == .cancelled {
-                        _ = associateTerminalAnnouncement(candidate)
+                    for var candidate in classifier.classifyAll(item, source: source, fetchedAt: batch.fetchedAt).reversed() {
+                        if candidate.confirmedAnnouncement && (candidate.state == .announcedComplete || candidate.state == .cancelled) {
+                            _ = associateTerminalAnnouncement(candidate)
+                        } else if let relatedID = relatedAnnouncementID(candidate) {
+                            candidate.relatedPostIDs = [candidate.id]
+                            candidate.id = relatedID
+                        }
+                        _ = reconciler.merge(candidate, into: &events)
                     }
-                    _ = reconciler.merge(candidate, into: &events)
                 }
             } catch {
                 updateStatus(source) { status in
@@ -197,6 +203,7 @@ final class MonitorModel: ObservableObject {
             guard let previous = eventsBeforeCheck.first(where: { $0.id == event.id }) else { return true }
             return !isActionable(previous, now: Date()) ||
                 previous.kind != event.kind || previous.timeMeaning != event.timeMeaning ||
+                previous.announcementStage != event.announcementStage ||
                 previous.targetAt != event.targetAt || previous.expiresAt != event.expiresAt ||
                 previous.audience != event.audience || Set(previous.products) != Set(event.products)
         }
@@ -443,6 +450,7 @@ final class MonitorModel: ObservableObject {
     }
 
     func isActionable(_ event: ResetEvent, now: Date) -> Bool {
+        guard event.isConfirmedOpportunity else { return false }
         if event.kind == .lead && event.confirmedAnnouncement && event.state == .unresolved {
             return Self.isFreshUndated(event, now: now)
         }
@@ -452,7 +460,6 @@ final class MonitorModel: ObservableObject {
         }
         if event.kind == .bankedResetGrant {
             guard event.state == .available || (event.state == .unresolved && event.confirmedAnnouncement) else { return false }
-            guard event.windowStart.map({ $0 <= now }) ?? true else { return false }
             if let expiry = event.expiresAt { return expiry > now }
             return Self.isFreshUndated(event, now: now)
         }
@@ -462,13 +469,23 @@ final class MonitorModel: ObservableObject {
     private func associateTerminalAnnouncement(_ announcement: ResetEvent) -> ResetEvent? {
         let matching = events.indices.filter { index in
             let event = events[index]
-            return (event.kind == .automaticReset || (event.kind == .lead && event.confirmedAnnouncement)) &&
-                (event.state == .scheduled || event.state == .dueUnconfirmed || event.state == .unresolved) &&
+            // Different clauses of the same post are distinct claims, not a completion update.
+            if event.id != announcement.id && event.evidence.contains(where: { first in
+                announcement.evidence.contains { second in first.url != nil && first.url == second.url }
+            }) { return false }
+            if announcement.state == .announcedComplete && event.targetAt == nil && (event.matchedText?.contains("next week") == true) { return false }
+            let matchingType = announcement.kind == .bankedResetGrant
+                ? event.kind == .bankedResetGrant
+                : (event.kind == .automaticReset || event.kind == .lead)
+            return matchingType &&
+                (event.state == .scheduled || event.state == .dueUnconfirmed || event.state == .unresolved || event.state == .available) &&
                 event.bestEvidence?.publishedAt.map { date in
                     guard let terminalDate = announcement.bestEvidence?.publishedAt else { return false }
                     return terminalDate >= date && terminalDate.timeIntervalSince(date) <= 86_400
                 } == true &&
-                !Set(event.products).isDisjoint(with: announcement.products)
+                event.confirmedAnnouncement &&
+                (announcement.state == .cancelled || event.targetAt.map { $0 <= (announcement.bestEvidence?.publishedAt ?? .distantPast) } != false) &&
+                compatibleProducts(event, announcement) && samePublisher(event, announcement)
         }
         guard matching.count == 1, let index = matching.first, events[index].id != announcement.id else { return nil }
         events[index].revision += 1
@@ -478,6 +495,70 @@ final class MonitorModel: ObservableObject {
             events[index].evidence.append(evidence)
         }
         return events[index]
+    }
+
+    // Re-evaluate old evidence silently on upgrade; never undo a user's used/dismissed choice.
+    private func reclassifySavedEvents(_ saved: [ResetEvent]) -> [ResetEvent] {
+        saved.map { old in
+            guard old.classifierVersion != AnnouncementClassifier.version,
+                  !old.evidence.contains(where: { $0.sourceKind == .manual }),
+                  ![.used, .dismissed, .archived].contains(old.state) else { return old }
+            let candidates = old.evidence.compactMap { evidence -> ResetEvent? in
+                guard let source = FeedSource.defaults.first(where: { $0.id == evidence.sourceID }) else { return nil }
+                return classifier.classify(FeedItem(id: evidence.itemID, title: "", body: evidence.excerpt,
+                    url: evidence.url, publishedAt: evidence.publishedAt), source: source, fetchedAt: old.firstSeenAt)
+            }.sorted { ($0.evidenceRank ?? 0) > ($1.evidenceRank ?? 0) }
+            guard var revised = candidates.first else {
+                var hidden = old
+                hidden.confirmedAnnouncement = false
+                hidden.classifierVersion = AnnouncementClassifier.version
+                return hidden
+            }
+            revised.id = old.id
+            revised.firstSeenAt = old.firstSeenAt
+            revised.updatedAt = old.updatedAt
+            revised.revision = old.revision
+            revised.evidence = old.evidence
+            if old.state == .cancelled || (old.state == .announcedComplete && old.kind != .bankedResetGrant) { revised.state = old.state }
+            return revised
+        }
+    }
+
+    private func compatibleProducts(_ a: ResetEvent, _ b: ResetEvent) -> Bool {
+        !Set(a.products).isDisjoint(with: b.products) || a.products == ["unspecified"] || b.products == ["unspecified"]
+    }
+
+    private func samePublisher(_ a: ResetEvent, _ b: ResetEvent) -> Bool {
+        func author(_ event: ResetEvent) -> String? {
+            event.evidence.compactMap { evidence -> String? in
+                guard let url = evidence.url, ["x.com", "twitter.com"].contains(url.host?.lowercased() ?? ""),
+                      url.pathComponents.count > 2, url.pathComponents[2] == "status" else { return nil }
+                return url.pathComponents[1].lowercased()
+            }.first
+        }
+        guard let first = author(a), let second = author(b) else { return false }
+        return first == second
+    }
+
+    private func relatedAnnouncementID(_ incoming: ResetEvent) -> String? {
+        if let known = events.first(where: { ($0.relatedPostIDs ?? []).contains(incoming.id) }) { return known.id }
+        guard incoming.confirmedAnnouncement, !events.contains(where: { $0.id == incoming.id }) else { return nil }
+        let text = incoming.matchedText ?? ""
+        // Explicit additional resets are independent opportunities, not updates.
+        guard text.range(of: #"\b(?:another|again|more resets)\b"#, options: .regularExpression) == nil else { return nil }
+        let candidates = events.filter { prior in
+            guard prior.confirmedAnnouncement, samePublisher(prior, incoming), compatibleProducts(prior, incoming),
+                  let published = incoming.bestEvidence?.publishedAt, let previous = prior.bestEvidence?.publishedAt,
+                  published >= previous, published.timeIntervalSince(previous) <= 86_400,
+                  ![.used, .dismissed, .cancelled, .announcedComplete, .archived].contains(prior.state) else { return false }
+            if prior.kind == incoming.kind && prior.matchedText == incoming.matchedText { return true }
+            if let target = prior.targetAt, target == incoming.targetAt { return true }
+            let advancesGrant = incoming.kind == .bankedResetGrant &&
+                (prior.kind == .lead || (prior.kind == .bankedResetGrant && prior.state == .unresolved)) &&
+                ["rollingOut", "available"].contains(incoming.announcementStage ?? "")
+            return advancesGrant
+        }
+        return candidates.count == 1 ? candidates.first?.id : nil
     }
 
     private func backoff(for failures: Int, base _: TimeInterval) -> TimeInterval {

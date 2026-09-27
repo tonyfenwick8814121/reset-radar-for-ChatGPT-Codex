@@ -72,6 +72,17 @@ struct ResetEvent: Identifiable, Codable, Hashable, Sendable {
     var firstSeenAt: Date
     var updatedAt: Date
 
+    var relatedPostIDs: [String]? = nil
+    var classifierVersion: Int? = nil
+    var evidenceRank: Int? = nil
+    var announcementStage: String? = nil
+    var matchedText: String? = nil
+    var reviewUntil: Date? = nil
+
+    var isConfirmedOpportunity: Bool {
+        confirmedAnnouncement || evidence.contains { $0.sourceKind == .manual }
+    }
+
     var bestEvidence: Evidence? {
         evidence.sorted { ($0.publishedAt ?? .distantPast) > ($1.publishedAt ?? .distantPast) }.first
     }
@@ -83,6 +94,7 @@ struct ResetEvent: Identifiable, Codable, Hashable, Sendable {
 
 extension ResetEvent {
     enum CodingKeys: String, CodingKey {
+        case relatedPostIDs, classifierVersion, evidenceRank, announcementStage, matchedText, reviewUntil
         case id, revision, kind, timeMeaning, state, precision, title, titleEN, targetAt
         case windowStart, windowEnd, expiresAt, products, audience, evidence, firstSeenAt, updatedAt, confirmedAnnouncement
     }
@@ -90,6 +102,12 @@ extension ResetEvent {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         confirmedAnnouncement = try values.decodeIfPresent(Bool.self, forKey: .confirmedAnnouncement) ?? false
+        relatedPostIDs = try values.decodeIfPresent([String].self, forKey: .relatedPostIDs)
+        classifierVersion = try values.decodeIfPresent(Int.self, forKey: .classifierVersion)
+        evidenceRank = try values.decodeIfPresent(Int.self, forKey: .evidenceRank)
+        announcementStage = try values.decodeIfPresent(String.self, forKey: .announcementStage)
+        matchedText = try values.decodeIfPresent(String.self, forKey: .matchedText)
+        reviewUntil = try values.decodeIfPresent(Date.self, forKey: .reviewUntil)
         id = try values.decode(String.self, forKey: .id)
         revision = try values.decodeIfPresent(Int.self, forKey: .revision) ?? 1
         kind = try values.decode(ResetKind.self, forKey: .kind)
@@ -115,6 +133,12 @@ extension ResetEvent {
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(confirmedAnnouncement, forKey: .confirmedAnnouncement)
+        try values.encodeIfPresent(relatedPostIDs, forKey: .relatedPostIDs)
+        try values.encodeIfPresent(classifierVersion, forKey: .classifierVersion)
+        try values.encodeIfPresent(evidenceRank, forKey: .evidenceRank)
+        try values.encodeIfPresent(announcementStage, forKey: .announcementStage)
+        try values.encodeIfPresent(matchedText, forKey: .matchedText)
+        try values.encodeIfPresent(reviewUntil, forKey: .reviewUntil)
         try values.encode(id, forKey: .id)
         try values.encode(revision, forKey: .revision)
         try values.encode(kind, forKey: .kind)

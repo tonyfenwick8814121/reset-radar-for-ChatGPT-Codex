@@ -15,7 +15,7 @@
 
 ### 下载与环境
 
-**[下载 v0.2.4 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.2.4/Reset-Radar-0.2.4-arm64.zip)**
+**[下载 v0.3.0 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.0/Reset-Radar-0.3.0-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -23,10 +23,11 @@
 
 ### 版本更新
 
-**v0.2.4 · 2026-09-28**
+**v0.3.0 · 2026-09-28**
 
-- 修复“重置已全部生效”被误显示为新的重置预告。
-- 已保存的未确认预告不再占据主窗口。
+- 重写预告判断：支持不同星期、下周预告和提前发放手动机会的公告。
+- 过滤否定、问句、教程与猜测；区分旧重置完成和新一次预告。
+- 分离发放与过期时间，原文优先，减少重复提醒。
 
 [完整版本记录](CHANGELOG.md) · [所有下载](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)
 
@@ -43,7 +44,7 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Download & requirements
 
-**[Download v0.2.4 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.2.4/Reset-Radar-0.2.4-arm64.zip)**
+**[Download v0.3.0 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.0/Reset-Radar-0.3.0-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
@@ -51,9 +52,10 @@ This preview is not Developer ID signed or notarized; macOS may block the first 
 
 ### Updates
 
-**v0.2.4 · 2026-09-28**
+**v0.3.0 · 2026-09-28**
 
-- Fixed a completed reset post being displayed as a new upcoming reset.
-- Previously saved unconfirmed leads no longer occupy the main window.
+- Rewritten detection for weekday / next-week promises and advance banked-reset announcements.
+- Filters negation, questions, tutorials and speculation; separates completed and upcoming resets.
+- Separates availability from expiry, prioritizes original evidence and reduces duplicate alerts.
 
 [Version history](CHANGELOG.md) · [All downloads](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)

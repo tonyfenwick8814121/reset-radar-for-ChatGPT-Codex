@@ -54,9 +54,10 @@ actor ReminderScheduler: ReminderScheduling {
 
     private func desiredReminders(events: [ResetEvent], preferences: UserPreferences, now: Date) -> [ScheduledReminder] {
         events.flatMap { event -> [ScheduledReminder] in
+            guard event.isConfirmedOpportunity else { return [] }
             let fireTarget: Date?
             if event.kind == .automaticReset && event.state == .scheduled { fireTarget = event.targetAt }
-            else if event.kind == .bankedResetGrant && event.state == .available { fireTarget = event.expiresAt }
+            else if event.kind == .bankedResetGrant && (event.state == .available || event.state == .unresolved) { fireTarget = event.expiresAt }
             else { fireTarget = nil }
             guard let target = fireTarget, target > now else { return [] }
             return ReminderPlanner.plan(target: target, offsets: preferences.reminderOffsets, now: now).map { reminder in

@@ -158,6 +158,6 @@ final class ReconciliationTests: XCTestCase {
 
     private func event(source: String, hash: String, target: Date) -> ResetEvent {
         let now = Date(timeIntervalSince1970: 1_000)
-        return ResetEvent(id: "same", revision: 1, kind: .automaticReset, state: .scheduled, precision: .exact, title: "Reset", titleEN: "Reset", targetAt: target, windowStart: nil, windowEnd: nil, expiresAt: nil, products: ["codex"], audience: "all", evidence: [Evidence(sourceID: source, itemID: source, sourceKind: .communityFeed, url: nil, publishedAt: now, fetchedAt: now, excerpt: "", contentHash: hash)], firstSeenAt: now, updatedAt: now)
+        return ResetEvent(id: "same", revision: 1, kind: .automaticReset, confirmedAnnouncement: true, state: .scheduled, precision: .exact, title: "Reset", titleEN: "Reset", targetAt: target, windowStart: nil, windowEnd: nil, expiresAt: nil, products: ["codex"], audience: "all", evidence: [Evidence(sourceID: source, itemID: source, sourceKind: .communityFeed, url: nil, publishedAt: now, fetchedAt: now, excerpt: "", contentHash: hash)], firstSeenAt: now, updatedAt: now)
     }
 }

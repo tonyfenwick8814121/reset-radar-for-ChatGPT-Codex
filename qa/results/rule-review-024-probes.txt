@@ -1,0 +1,116 @@
+Building for debugging...
+[0/15] /private/tmp/reset-radar-rule-review.EVTeEO/.build/arm64-apple-macosx/debug/ResetRadarPackageTests.derived/runner.swift
+[1/15] Write sources
+[2/15] Copying Info.plist
+[2/15] Copying Localizable.strings
+[2/15] Write sources
+[3/15] Copying Localizable.strings
+[6/15] Copying ResetRadar.icns
+[7/15] Write sources
+[8/15] Write ResetRadar-entitlement.plist
+[9/15] Write swift-version--58304C5D6DBC2206.txt
+[11/33] Compiling ResetRadar FeedClient.swift
+[12/33] Compiling ResetRadar XMLFeedParser.swift
+[13/35] Compiling ResetRadar MiniView.swift
+[14/35] Compiling ResetRadar resource_bundle_accessor.swift
+[15/35] Compiling ResetRadar Copy.swift
+[16/35] Compiling ResetRadar CountdownView.swift
+[17/35] Compiling ResetRadar FloatingPanelController.swift
+[18/35] Compiling ResetRadar ManualEntryWindowController.swift
+[19/35] Compiling ResetRadar LaunchAtLoginService.swift
+[20/35] Compiling ResetRadar MonitorModel.swift
+[21/35] Compiling ResetRadar ReminderScheduler.swift
+[22/35] Compiling ResetRadar SoundService.swift
+[23/35] Compiling ResetRadar FeedCatalog.swift
+[24/35] Compiling ResetRadar TimeResolver.swift
+[25/35] Compiling ResetRadar LocalStore.swift
+[26/35] Compiling ResetRadar EventReconciler.swift
+[27/35] Compiling ResetRadar ResetRadarMain.swift
+[28/35] Compiling ResetRadar Models.swift
+[29/35] Compiling ResetRadar AnnouncementClassifier.swift
+[30/35] Emitting module ResetRadar
+[30/35] Write Objects.LinkFileList
+[31/35] Linking ResetRadar
+[32/35] Applying ResetRadar
+[34/44] Compiling ResetRadarTests ReminderPlannerTests.swift
+[35/44] Compiling ResetRadarTests ResetRuleAuditTests.swift
+[36/44] Compiling ResetRadarTests TimeResolverTests.swift
+[37/44] Compiling ResetRadarTests ReconciliationTests.swift
+[38/45] Compiling ResetRadarTests PersistenceTests.swift
+[39/45] Emitting module ResetRadarTests
+[40/45] Compiling ResetRadarTests ClassifierTests.swift
+[41/45] Compiling ResetRadarTests CountdownTests.swift
+[42/45] Compiling ResetRadarTests MonitorModelTests.swift
+[43/45] Compiling ResetRadarTests XMLFeedParserTests.swift
+[44/47] Emitting module ResetRadarPackageTests
+[45/47] Compiling ResetRadarPackageTests runner.swift
+[45/47] Write Objects.LinkFileList
+[46/47] Linking ResetRadarPackageTests
+Build complete! (19.36s)
+Test Suite 'Selected tests' started at 2026-09-28 06:12:12.894.
+Test Suite 'ResetRadarPackageTests.xctest' started at 2026-09-28 06:12:12.896.
+Test Suite 'ResetRuleAuditTests' started at 2026-09-28 06:12:12.896.
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test01WednesdayPromiseShouldHaveSameTreatmentAsTuesday]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:23: error: -[ResetRadarTests.ResetRuleAuditTests test01WednesdayPromiseShouldHaveSameTreatmentAsTuesday] : XCTAssertTrue failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test01WednesdayPromiseShouldHaveSameTreatmentAsTuesday]' failed (0.111 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test02ExplicitNextWeekAnnouncementShouldBeAnUndatedLead]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:28: error: -[ResetRadarTests.ResetRuleAuditTests test02ExplicitNextWeekAnnouncementShouldBeAnUndatedLead] : XCTAssertTrue failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test02ExplicitNextWeekAnnouncementShouldBeAnUndatedLead]' failed (0.009 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test03NegatedGrantMustNotAlert]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:33: error: -[ResetRadarTests.ResetRuleAuditTests test03NegatedGrantMustNotAlert] : XCTAssertFalse failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test03NegatedGrantMustNotAlert]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test04GrantQuestionMustNotAlert]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:37: error: -[ResetRadarTests.ResetRuleAuditTests test04GrantQuestionMustNotAlert] : XCTAssertFalse failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test04GrantQuestionMustNotAlert]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test05GrantHelpTextMustNotAlert]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:41: error: -[ResetRadarTests.ResetRuleAuditTests test05GrantHelpTextMustNotAlert] : XCTAssertFalse failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test05GrantHelpTextMustNotAlert]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test06CompletedOldResetMustNotHideTheNextReset]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:45: error: -[ResetRadarTests.ResetRuleAuditTests test06CompletedOldResetMustNotHideTheNextReset] : XCTAssertTrue failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test06CompletedOldResetMustNotHideTheNextReset]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test07CompletedGrantDistributionShouldRemainUsable]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:49: error: -[ResetRadarTests.ResetRuleAuditTests test07CompletedGrantDistributionShouldRemainUsable] : XCTAssertTrue failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test07CompletedGrantDistributionShouldRemainUsable]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test08UncertaintyInUnrelatedSentenceMustNotEraseExplicitPromise]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:53: error: -[ResetRadarTests.ResetRuleAuditTests test08UncertaintyInUnrelatedSentenceMustNotEraseExplicitPromise] : XCTAssertTrue failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test08UncertaintyInUnrelatedSentenceMustNotEraseExplicitPromise]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test09GrantAvailabilityAndExpiryNeedSeparateDates]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:58: error: -[ResetRadarTests.ResetRuleAuditTests test09GrantAvailabilityAndExpiryNeedSeparateDates] : XCTAssertEqual failed: ("Optional(2026-09-28 12:00:00 +0000)") is not equal to ("Optional(2026-09-30 12:00:00 +0000)")
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test09GrantAvailabilityAndExpiryNeedSeparateDates]' failed (0.004 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test10TimestampOfIncidentMustNotBecomeResetTime]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:63: error: -[ResetRadarTests.ResetRuleAuditTests test10TimestampOfIncidentMustNotBecomeResetTime] : XCTAssertEqual failed: ("Optional(2026-09-28 08:00:00 +0000)") is not equal to ("Optional(2026-09-28 14:00:00 +0000)")
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test10TimestampOfIncidentMustNotBecomeResetTime]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test11UnverifiedDatedClaimMustNotBypassConfirmation]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:67: error: -[ResetRadarTests.ResetRuleAuditTests test11UnverifiedDatedClaimMustNotBypassConfirmation] : XCTAssertFalse failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test11UnverifiedDatedClaimMustNotBypassConfirmation]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test12UncertainGrantMustNotOccupyOpportunityWindow]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:73: error: -[ResetRadarTests.ResetRuleAuditTests test12UncertainGrantMustNotOccupyOpportunityWindow] : XCTAssertNil failed: "ResetEvent(id: "status-123", revision: 1, kind: ResetRadar.ResetKind.bankedResetGrant, timeMeaning: ResetRadar.TimeMeaning.unknown, confirmedAnnouncement: false, state: ResetRadar.EventState.unresolved, precision: ResetRadar.TimePrecision.unknown, title: "发现重置机会", titleEN: "Reset opportunity", targetAt: nil, windowStart: nil, windowEnd: nil, expiresAt: nil, products: ["codex"], audience: "unknown", evidence: [ResetRadar.Evidence(sourceID: "codex-reset-json", itemID: "123", sourceKind: ResetRadar.SourceKind.communityFeed, url: Optional(https://x.com/thsottiaux/status/123), publishedAt: Optional(2026-09-28 10:00:00 +0000), fetchedAt: 2026-09-28 10:00:00 +0000, excerpt: " Maybe Codex users get a banked reset tomorrow.", contentHash: "384fc362d93dd199df58b9461dfb6f4eb92a5e28d7a4f929bceda9bc1d44c6ea")], firstSeenAt: 2026-09-28 10:00:00 +0000, updatedAt: 2026-09-28 10:00:00 +0000)"
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test12UncertainGrantMustNotOccupyOpportunityWindow]' failed (0.003 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test13WeakSummaryMustNotDowngradeOriginalPromise]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:81: error: -[ResetRadarTests.ResetRuleAuditTests test13WeakSummaryMustNotDowngradeOriginalPromise] : XCTAssertTrue failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test13WeakSummaryMustNotDowngradeOriginalPromise]' failed (0.002 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test14GenericResetWithFutureTimeMustNotCountAsComplete]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:85: error: -[ResetRadarTests.ResetRuleAuditTests test14GenericResetWithFutureTimeMustNotCountAsComplete] : XCTAssertNotEqual failed: ("Optional(ResetRadar.EventState.announcedComplete)") is equal to ("Optional(ResetRadar.EventState.announcedComplete)")
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test14GenericResetWithFutureTimeMustNotCountAsComplete]' failed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test15BothProductsShouldBePreserved]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:90: error: -[ResetRadarTests.ResetRuleAuditTests test15BothProductsShouldBePreserved] : XCTAssertEqual failed: ("["chatgpt-work"]") is not equal to ("["chatgpt-work", "codex"]")
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test15BothProductsShouldBePreserved]' failed (0.002 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test16CompletedPostControl]' started.
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test16CompletedPostControl]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test17KnownTuesdayPromiseControl]' started.
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test17KnownTuesdayPromiseControl]' passed (0.000 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test18AffectedUsersCompensationControl]' started.
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test18AffectedUsersCompensationControl]' passed (0.001 seconds).
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test19FutureGrantShouldNotifyAtAnnouncement]' started.
+/private/tmp/reset-radar-rule-review.EVTeEO/ResetRadarTests/ResetRuleAuditTests.swift:110: error: -[ResetRadarTests.ResetRuleAuditTests test19FutureGrantShouldNotifyAtAnnouncement] : XCTAssertTrue failed
+Test Case '-[ResetRadarTests.ResetRuleAuditTests test19FutureGrantShouldNotifyAtAnnouncement]' failed (0.001 seconds).
+Test Suite 'ResetRuleAuditTests' failed at 2026-09-28 06:12:13.037.
+	 Executed 19 tests, with 16 failures (0 unexpected) in 0.140 (0.141) seconds
+Test Suite 'ResetRadarPackageTests.xctest' failed at 2026-09-28 06:12:13.037.
+	 Executed 19 tests, with 16 failures (0 unexpected) in 0.140 (0.141) seconds
+Test Suite 'Selected tests' failed at 2026-09-28 06:12:13.037.
+	 Executed 19 tests, with 16 failures (0 unexpected) in 0.140 (0.143) seconds
+◇ Test run started.
+↳ Testing Library Version: 1501
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
