@@ -15,7 +15,7 @@
 
 ### 下载与环境
 
-**[下载 v0.2.4 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/raw/refs/heads/main/downloads/Reset-Radar-0.2.4-arm64.zip)**
+**[下载 v0.2.4 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.2.4/Reset-Radar-0.2.4-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -43,7 +43,7 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Download & requirements
 
-**[Download v0.2.4 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/raw/refs/heads/main/downloads/Reset-Radar-0.2.4-arm64.zip)**
+**[Download v0.2.4 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.2.4/Reset-Radar-0.2.4-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
