@@ -111,6 +111,37 @@ final class RuleNotificationTests: XCTestCase {
         XCTAssertNotNil(decoded.reviewUntil)
     }
 
+    func testUpgradeRestoresCountdownForSavedPreviewWithoutNewDiscovery() async throws {
+        let (model, dir) = makeModel()
+        defer { model.stop(); try? FileManager.default.removeItem(at: dir) }
+        let published = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 120)
+        let text = "Global reset landing tomorrow 10am PST for all paid ChatGPT accounts."
+        let source = try XCTUnwrap(FeedSource.defaults.first { $0.id == "codex-reset-json" })
+        let item = FeedItem(id: "10", title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: published)
+        var legacy = try XCTUnwrap(AnnouncementClassifier().classify(item, source: source, fetchedAt: published))
+        legacy.kind = .lead
+        legacy.state = .unresolved
+        legacy.precision = .unknown
+        legacy.targetAt = nil
+        legacy.timeMeaning = .unknown
+        legacy.classifierVersion = 3
+        var dismissed = legacy
+        dismissed.id = "dismissed"
+        dismissed.state = .dismissed
+        try await LocalStore(directory: dir).saveEvents([legacy, dismissed])
+        var alerts = 0
+        model.onNewActionableEvent = { _ in alerts += 1 }
+        await model.start().value
+        let revised = try XCTUnwrap(model.activeEvent)
+        XCTAssertEqual(revised.kind, .automaticReset)
+        XCTAssertEqual(revised.state, .scheduled)
+        XCTAssertNotNil(revised.countdownAt)
+        XCTAssertEqual(revised.firstSeenAt, legacy.firstSeenAt)
+        XCTAssertEqual(revised.classifierVersion, AnnouncementClassifier.version)
+        XCTAssertEqual(alerts, 0)
+        XCTAssertEqual(model.events.first { $0.id == "dismissed" }?.state, .dismissed)
+    }
+
     func testSeparateCancellationPostClearsFutureReset() async {
         let (model, dir) = makeModel()
         defer { try? FileManager.default.removeItem(at: dir) }

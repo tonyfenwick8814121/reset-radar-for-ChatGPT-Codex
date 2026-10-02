@@ -4,7 +4,7 @@ import Foundation
 /// Local, deterministic claims: each sentence has its own action, polarity and time.
 /// A missing date never prevents a credible explicit announcement from being surfaced.
 struct AnnouncementClassifier {
-    static let version = 3
+    static let version = 4
     private let resolver = TimeResolver()
 
     func classify(_ item: FeedItem, source: FeedSource, fetchedAt: Date) -> ResetEvent? {
@@ -162,8 +162,7 @@ struct AnnouncementClassifier {
         return "unknown"
     }
     private func resolved(_ text: String, publishedAt: Date?) -> Date? {
-        let zone = matches(#"\b(?:pt|pst|pdt)\b"#, text) ? "America/Los_Angeles" : nil
-        if case .exact(let date) = resolver.resolve(text, publishedAt: publishedAt, verifiedContextZone: zone) { return date }
+        if case .exact(let date) = resolver.resolve(text, publishedAt: publishedAt) { return date }
         return nil
     }
     private func suffix(from pattern: String, in text: String) -> String? {

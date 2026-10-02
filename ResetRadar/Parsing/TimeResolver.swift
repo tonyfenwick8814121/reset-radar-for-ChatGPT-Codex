@@ -12,7 +12,7 @@ struct TimeResolver {
 
     func resolve(_ text: String, publishedAt: Date? = nil, verifiedContextZone: String? = nil) -> Resolution {
         if let result = resolveISO8601(text) { return result }
-        if let result = resolveNamedDate(text, verifiedContextZone: verifiedContextZone) { return result }
+        if let result = resolveNamedDate(text) { return result }
         if let result = resolveTomorrow(text, publishedAt: publishedAt, verifiedContextZone: verifiedContextZone) { return result }
         if let result = resolveIANADate(text) { return result }
         return .unresolved("No unambiguous date, time, and zone")
@@ -28,32 +28,24 @@ struct TimeResolver {
         return .unresolved("Invalid ISO 8601 timestamp")
     }
 
-    private func resolveNamedDate(_ text: String, verifiedContextZone: String?) -> Resolution? {
+    private func resolveNamedDate(_ text: String) -> Resolution? {
         let pattern = #"(?i)(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})\s+at\s+(\d{1,2}):(\d{2})\s+(PT|PST|PDT)"#
         guard let values = captures(pattern, in: text), values.count == 7,
               let month = monthNumber(values[1]), let day = Int(values[2]), let year = Int(values[3]),
               let hour = Int(values[4]), let minute = Int(values[5]),
               (0...23).contains(hour), (0...59).contains(minute) else { return nil }
-        let abbreviation = values[6].uppercased()
-        if abbreviation == "PST", verifiedContextZone == losAngeles.identifier {
-            let candidates = matchingInstants(year: year, month: month, day: day, hour: hour, minute: minute, zone: losAngeles)
-            if let date = candidates.first, losAngeles.secondsFromGMT(for: date) != -28_800 {
-                return .unresolved("PST conflicts with daylight time in America/Los_Angeles")
-            }
-        }
-        let zone: TimeZone
-        if abbreviation == "PST" { zone = TimeZone(secondsFromGMT: -28_800)! }
-        else if abbreviation == "PDT" { zone = TimeZone(secondsFromGMT: -25_200)! }
-        else { zone = losAngeles }
+        guard let zone = pacificZone(values[6]) else { return nil }
         let candidates = matchingInstants(year: year, month: month, day: day, hour: hour, minute: minute, zone: zone)
         return candidates.count == 1 ? .exact(candidates[0]) : .unresolved("Local time is missing or repeated")
     }
 
     private func resolveTomorrow(_ text: String, publishedAt: Date?, verifiedContextZone: String?) -> Resolution? {
-        let pattern = #"(?i)tomorrow\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*(PT|PST|PDT)?"#
+        let pattern = #"(?i)\btomorrow\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?:\s*(PST|PDT|PT))?\b"#
         guard let values = captures(pattern, in: text), values.count >= 4 else { return nil }
-        guard let publishedAt, let verifiedContextZone, let zone = TimeZone(identifier: verifiedContextZone) else {
-            return .unresolved("Relative date lacks a verified source time zone")
+        // Explicit PST/PDT are fixed offsets; only PT follows seasonal Pacific time.
+        let explicitZone = values.count > 4 ? pacificZone(values[4]) : nil
+        guard let publishedAt, let zone = explicitZone ?? verifiedContextZone.flatMap(TimeZone.init(identifier:)) else {
+            return .unresolved("Relative date lacks a publication date or source time zone")
         }
         guard var hour = Int(values[1]), (1...12).contains(hour) else { return .unresolved("Invalid hour") }
         let minute = values.count > 2 ? (Int(values[2]) ?? 0) : 0
@@ -70,6 +62,15 @@ struct TimeResolver {
         let target = calendar.dateComponents([.year, .month, .day], from: tomorrow)
         let candidates = matchingInstants(year: target.year!, month: target.month!, day: target.day!, hour: hour, minute: minute, zone: zone)
         return candidates.count == 1 ? .exact(candidates[0]) : .unresolved("Local time is missing or repeated")
+    }
+
+    private func pacificZone(_ abbreviation: String) -> TimeZone? {
+        switch abbreviation.uppercased() {
+        case "PST": return TimeZone(secondsFromGMT: -28_800)
+        case "PDT": return TimeZone(secondsFromGMT: -25_200)
+        case "PT": return losAngeles
+        default: return nil
+        }
     }
 
     private func resolveIANADate(_ text: String) -> Resolution? {

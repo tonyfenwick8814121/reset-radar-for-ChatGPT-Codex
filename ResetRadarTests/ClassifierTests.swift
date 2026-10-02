@@ -5,6 +5,26 @@ final class ClassifierTests: XCTestCase {
     private let classifier = AnnouncementClassifier()
     private let fetched = ISO8601DateFormatter().date(from: "2026-09-09T08:00:00Z")!
 
+    func testOctoberGlobalResetHasBeijingCountdown() throws {
+        let published = ISO8601DateFormatter().date(from: "2026-10-02T02:14:51Z")!
+        let item = FeedItem(id: "2105843926221660585", title: "",
+            body: "Global reset landing tomorrow 10am PST for all paid ChatGPT accounts. Apologies for the slow start with GPT-6.1 Sol, it's now back to running at expected speeds after the massive load spike in the first two days.",
+            url: URL(string: "https://x.com/thsottiaux/status/2105843926221660585"), publishedAt: published)
+        let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: published.addingTimeInterval(60)))
+        XCTAssertTrue(event.confirmedAnnouncement)
+        XCTAssertEqual(event.kind, .automaticReset)
+        XCTAssertEqual(event.state, .scheduled)
+        XCTAssertEqual(event.precision, .exact)
+        let target = try XCTUnwrap(event.countdownAt)
+        XCTAssertEqual(target, ISO8601DateFormatter().date(from: "2026-10-02T18:00:00Z"))
+        var beijing = Calendar(identifier: .gregorian)
+        beijing.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let components = beijing.dateComponents([.year, .month, .day, .hour, .minute], from: target)
+        XCTAssertEqual([components.year, components.month, components.day, components.hour, components.minute], [2026, 10, 3, 2, 0])
+        let replay = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: published.addingTimeInterval(86_400)))
+        XCTAssertEqual(replay.targetAt, event.targetAt, "Tomorrow stays anchored to the post, not the check date")
+    }
+
     func testBankedResetIsNotAutomaticReset() throws {
         let item = FeedItem(id: "1", title: "Codex usage reset", body: "Some Plus users get a banked reset. Lands by end of day. Source: https://x.com/thsottiaux/status/12345", url: nil, publishedAt: fetched)
         let event = try XCTUnwrap(classifier.classify(item, source: source("modelyard"), fetchedAt: fetched))

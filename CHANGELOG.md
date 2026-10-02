@@ -1,5 +1,15 @@
 # 版本记录 · Changelog
 
+## 0.3.1 — 2026-10-02
+
+- 修复 “tomorrow 10am PST” 未写 at 导致明确时间被显示为待确认的问题。
+- “明天”按原帖发布时间及原文时区计算；PST 固定 UTC−8，PDT 固定 UTC−7，PT 按当地夏令时规则。
+- 升级时静默补全已保存预告的倒计时，保留已处理记录；缺少发布时间或时区时仍不猜测。
+
+- Fixed explicit reset times being left unresolved when “tomorrow 10am PST” omits “at”.
+- Resolves “tomorrow” from the publication date and stated zone: PST is UTC−8, PDT is UTC−7, and PT follows seasonal Pacific time.
+- Silently restores countdowns for saved previews on upgrade while preserving handled records; missing publication dates or zones remain unresolved.
+
 ## 0.3.0 — 2026-09-28
 
 - 重写句子级判断：明确承诺即提醒，时间不确定时保留预告；过滤否定、疑问、教程与猜测。

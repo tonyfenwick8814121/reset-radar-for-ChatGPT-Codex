@@ -19,9 +19,34 @@ final class TimeResolverTests: XCTestCase {
         XCTAssertEqual(result, .exact(iso.date(from: "2026-09-09T21:00:00Z")!))
     }
 
-    func testPSTConflictInSummerIsUnresolved() {
+    func testExplicitPSTKeepsItsFixedOffsetInSummer() {
         let result = resolver.resolve("Reset on September 9, 2026 at 14:00 PST.", verifiedContextZone: "America/Los_Angeles")
-        guard case .unresolved = result else { return XCTFail("Expected unresolved") }
+        XCTAssertEqual(result, .exact(iso.date(from: "2026-09-09T22:00:00Z")!))
+    }
+
+    func testTomorrowPacificZonesWithAndWithoutAt() {
+        let published = iso.date(from: "2026-10-02T02:14:51Z")!
+        for (abbreviation, target) in [("PST", "2026-10-02T18:00:00Z"), ("PDT", "2026-10-02T17:00:00Z"), ("PT", "2026-10-02T17:00:00Z")] {
+            for connector in ["", "at "] {
+                let text = "Global reset landing tomorrow \(connector)10am \(abbreviation) for all paid ChatGPT accounts."
+                for context in [nil, "America/Los_Angeles"] as [String?] {
+                    XCTAssertEqual(resolver.resolve(text, publishedAt: published, verifiedContextZone: context),
+                                   .exact(iso.date(from: target)!), text)
+                }
+            }
+        }
+    }
+
+    func testTomorrowFixedOffsetsAndSeasonalPTInWinter() {
+        let published = iso.date(from: "2026-12-02T02:14:51Z")!
+        for (zone, target) in [("PST", "2026-12-02T18:00:00Z"), ("PDT", "2026-12-02T17:00:00Z"), ("PT", "2026-12-02T18:00:00Z")] {
+            XCTAssertEqual(resolver.resolve("Reset tomorrow at 10am \(zone)", publishedAt: published),
+                           .exact(iso.date(from: target)!))
+        }
+    }
+
+    func testTomorrowWithoutPublicationDateIsUnresolved() {
+        guard case .unresolved = resolver.resolve("Reset tomorrow 10am PST") else { return XCTFail("Publication date is required") }
     }
 
     func testRelativeDateWithoutZoneIsUnresolved() {
