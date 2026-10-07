@@ -82,6 +82,7 @@ struct EventReconciler {
             stored.announcementStage = incoming.announcementStage
             stored.matchedText = incoming.matchedText
             stored.reviewUntil = incoming.reviewUntil
+            stored.completedAt = stored.completedAt ?? incoming.completedAt
             stored.confirmedAnnouncement = incoming.confirmedAnnouncement
             stored.kind = incoming.kind
             stored.timeMeaning = incoming.timeMeaning

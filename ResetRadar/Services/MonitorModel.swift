@@ -18,6 +18,8 @@ final class MonitorModel: ObservableObject {
     private var pollTask: Task<Void, Never>?
     private var lifecycleTask: Task<Void, Never>?
     var onNewActionableEvent: ((ResetEvent) -> Void)?
+    var onNewCompletedReset: ((ResetEvent) -> Void)?
+    @Published private(set) var completionNoticeID: String?
     var onPreferencesChanged: ((UserPreferences) -> Void)?
 
     init(store: LocalStore = LocalStore(), client: FeedClient = FeedClient(), scheduler: any ReminderScheduling = ReminderScheduler.shared) {
@@ -27,7 +29,8 @@ final class MonitorModel: ObservableObject {
     }
 
     var activeEvent: ResetEvent? {
-        Self.selectActiveEvent(events, now: Date())
+        if let notice = events.first(where: { $0.id == completionNoticeID && $0.isRecentCompletion(at: Date()) }) { return notice }
+        return Self.selectActiveEvent(events, now: Date())
     }
 
     static func selectActiveEvent(_ events: [ResetEvent], now: Date) -> ResetEvent? {
@@ -49,12 +52,13 @@ final class MonitorModel: ObservableObject {
         }
             .sorted { $0.updatedAt > $1.updatedAt }
         if let grant = validGrants.first { return grant }
-        return events.filter {
+        let lead = events.filter {
             $0.kind == .lead &&
             $0.confirmedAnnouncement &&
             $0.state == .unresolved &&
             Self.isFreshUndated($0, now: now)
         }.sorted { $0.updatedAt > $1.updatedAt }.first
+        return lead ?? events.filter { $0.isRecentCompletion(at: now) }.max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
     }
 
     static func isFreshUndated(_ event: ResetEvent, now: Date) -> Bool {
@@ -67,6 +71,12 @@ final class MonitorModel: ObservableObject {
     static func advanceLifecycle(_ events: inout [ResetEvent], now: Date) -> Bool {
         var changed = false
         for index in events.indices {
+            if events[index].state == .announcedComplete, events[index].completedAt != nil,
+               !events[index].isRecentCompletion(at: now) {
+                events[index].state = .archived
+                events[index].updatedAt = now
+                changed = true
+            }
             if events[index].countdownAt == nil,
                [.available, .unresolved].contains(events[index].state),
                !Self.isFreshUndated(events[index], now: now),
@@ -169,7 +179,10 @@ final class MonitorModel: ObservableObject {
                 for item in batch.items.sorted(by: { ($0.freshnessDate ?? .distantPast) < ($1.freshnessDate ?? .distantPast) }) {
                     for var candidate in classifier.classifyAll(item, source: source, fetchedAt: batch.fetchedAt).reversed() {
                         if candidate.confirmedAnnouncement && (candidate.state == .announcedComplete || candidate.state == .cancelled) {
-                            _ = associateTerminalAnnouncement(candidate)
+                            if let relatedID = terminalAnnouncementID(candidate) {
+                                candidate.relatedPostIDs = [candidate.id]
+                                candidate.id = relatedID
+                            }
                         } else if let relatedID = relatedAnnouncementID(candidate) {
                             candidate.relatedPostIDs = [candidate.id]
                             candidate.id = relatedID
@@ -207,14 +220,23 @@ final class MonitorModel: ObservableObject {
                 previous.targetAt != event.targetAt || previous.expiresAt != event.expiresAt ||
                 previous.audience != event.audience || Set(previous.products) != Set(event.products)
         }
-        if let opportunity = Self.selectActiveEvent(newOpportunities, now: Date()) {
-            onNewActionableEvent?(opportunity)
+        let newCompletions = events.filter { $0.isRecentCompletion(at: Date()) && $0.completionNotifiedAt == nil }
+        for index in events.indices where newCompletions.contains(where: { $0.id == events[index].id }) {
+            events[index].completionNotifiedAt = Date()
         }
         do {
             try await store.saveEvents(events)
             try await store.saveStatuses(statuses)
         } catch {
             storageMessage = error.localizedDescription
+        }
+        if let completion = newCompletions.max(by: { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }) {
+            completionNoticeID = completion.id
+            onNewCompletedReset?(completion)
+        }
+        if let opportunity = Self.selectActiveEvent(newOpportunities, now: Date()) {
+            completionNoticeID = nil
+            onNewActionableEvent?(opportunity)
         }
         await scheduler.reconcile(events: events, preferences: preferences, now: Date())
     }
@@ -466,7 +488,9 @@ final class MonitorModel: ObservableObject {
         return false
     }
 
-    private func associateTerminalAnnouncement(_ announcement: ResetEvent) -> ResetEvent? {
+    private func terminalAnnouncementID(_ announcement: ResetEvent) -> String? {
+        if let known = events.first(where: { ($0.relatedPostIDs ?? []).contains(announcement.id) }) { return known.id }
+        if events.contains(where: { $0.id == announcement.id }) { return nil }
         let matching = events.indices.filter { index in
             let event = events[index]
             // Different clauses of the same post are distinct claims, not a completion update.
@@ -478,7 +502,7 @@ final class MonitorModel: ObservableObject {
                 ? event.kind == .bankedResetGrant
                 : (event.kind == .automaticReset || event.kind == .lead)
             return matchingType &&
-                (event.state == .scheduled || event.state == .dueUnconfirmed || event.state == .unresolved || event.state == .available) &&
+                ([.scheduled, .dueUnconfirmed, .unresolved, .available, .dismissed, .used].contains(event.state)) &&
                 event.bestEvidence?.publishedAt.map { date in
                     guard let terminalDate = announcement.bestEvidence?.publishedAt else { return false }
                     return terminalDate >= date && terminalDate.timeIntervalSince(date) <= 86_400
@@ -487,14 +511,20 @@ final class MonitorModel: ObservableObject {
                 (announcement.state == .cancelled || event.targetAt.map { $0 <= (announcement.bestEvidence?.publishedAt ?? .distantPast) } != false) &&
                 compatibleProducts(event, announcement) && samePublisher(event, announcement)
         }
-        guard matching.count == 1, let index = matching.first, events[index].id != announcement.id else { return nil }
-        events[index].revision += 1
-        events[index].state = announcement.state
-        events[index].updatedAt = announcement.updatedAt
-        for evidence in announcement.evidence where !events[index].evidence.contains(evidence) {
-            events[index].evidence.append(evidence)
+        if matching.count == 1, let index = matching.first { return events[index].id }
+        // A propagation follow-up can update a recent completed reset without another alert.
+        if matching.isEmpty, announcement.state == .announcedComplete,
+           announcement.matchedText?.range(of: #"fully propagated|resets? (?:all )?propagated"#, options: .regularExpression) != nil,
+           announcement.matchedText?.range(of: #"\b(?:another|again|new reset)\b"#, options: .regularExpression) == nil {
+            let completed = events.filter { event in
+                guard event.state == .announcedComplete, let date = event.completedAt,
+                      let published = announcement.completedAt else { return false }
+                return published >= date && published.timeIntervalSince(date) <= 86_400 &&
+                    compatibleProducts(event, announcement) && samePublisher(event, announcement)
+            }
+            if completed.count == 1 { return completed[0].id }
         }
-        return events[index]
+        return nil
     }
 
     // Re-evaluate old evidence silently on upgrade; never undo a user's used/dismissed choice.
@@ -507,7 +537,10 @@ final class MonitorModel: ObservableObject {
                 guard let source = FeedSource.defaults.first(where: { $0.id == evidence.sourceID }) else { return nil }
                 return classifier.classify(FeedItem(id: evidence.itemID, title: "", body: evidence.excerpt,
                     url: evidence.url, publishedAt: evidence.publishedAt), source: source, fetchedAt: old.firstSeenAt)
-            }.sorted { ($0.evidenceRank ?? 0) > ($1.evidenceRank ?? 0) }
+            }.sorted {
+                if $0.evidenceRank != $1.evidenceRank { return ($0.evidenceRank ?? 0) > ($1.evidenceRank ?? 0) }
+                return old.state == .announcedComplete && $0.state == .announcedComplete && $1.state != .announcedComplete
+            }
             guard var revised = candidates.first else {
                 var hidden = old
                 hidden.confirmedAnnouncement = false
@@ -519,6 +552,9 @@ final class MonitorModel: ObservableObject {
             revised.updatedAt = old.updatedAt
             revised.revision = old.revision
             revised.evidence = old.evidence
+            revised.relatedPostIDs = old.relatedPostIDs
+            revised.completedAt = old.completedAt ?? revised.completedAt
+            revised.completionNotifiedAt = old.completionNotifiedAt
             if old.state == .cancelled || (old.state == .announcedComplete && old.kind != .bankedResetGrant) { revised.state = old.state }
             return revised
         }

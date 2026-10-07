@@ -52,11 +52,15 @@ struct MiniView: View {
     }
 
     private func countdown(now: Date) -> String {
+        if model.activeEvent?.state == .announcedComplete { return model.preferences.locale == .zhHans ? "✓ 已重置" : "✓ Reset done" }
         guard let target = model.activeEvent?.countdownAt else { return "––:––:––" }
         return CountdownView.remaining(target.timeIntervalSince(now))
     }
 
     private var targetText: String {
+        if let event = model.activeEvent, event.state == .announcedComplete, let published = event.completedAt {
+            return "\(model.preferences.locale == .zhHans ? "公告发布" : "Announced") · \(CountdownView.format(published, zoneID: model.preferences.displayTimeZone, locale: model.preferences.locale))"
+        }
         guard let target = model.activeEvent?.countdownAt else {
             if model.activeEvent?.kind == .bankedResetGrant {
                 return model.preferences.locale == .zhHans ? "请在账号内核对" : "Check your account"
@@ -74,6 +78,7 @@ struct MiniView: View {
 
     private var statusText: String {
         guard let event = model.activeEvent else { return Copy.text(.noAnnouncement, model.preferences.locale) }
+        if event.state == .announcedComplete { return model.preferences.locale == .zhHans ? "重置已完成 · 请核对账号" : "Reset completed · Check your account" }
         if event.kind == .bankedResetGrant {
             if event.audience == "affected-reset-users" { return model.preferences.locale == .zhHans ? "重置补偿 · 请核对资格" : "Compensation · Check eligibility" }
             if event.state == .unresolved { return model.preferences.locale == .zhHans ? "手动重置机会发放中" : "Banked reset rolling out" }
@@ -86,6 +91,7 @@ struct MiniView: View {
     }
 
     private var accent: Color {
+        if model.activeEvent?.state == .announcedComplete { return .teal }
         if model.activeEvent?.kind == .bankedResetGrant { return .green }
         if let date = model.activeEvent?.targetAt, date.timeIntervalSinceNow < 300 { return .red }
         return model.activeEvent == nil ? .gray : .orange

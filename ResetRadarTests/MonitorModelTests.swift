@@ -162,11 +162,13 @@ final class MonitorModelTests: XCTestCase {
         XCTAssertEqual(model.events.first { $0.id == id }?.state, .used)
     }
 
-    func testRealAnnouncementPathAlertsOnceAndCompletionClearsIt() async throws {
+    func testRealAnnouncementPathSeparatesPreviewAndCompletionAlerts() async throws {
         MonitorURLProtocol.mode = .confirmed
         let model = makeModel()
         var discoveries = 0
+        var completions = 0
         model.onNewActionableEvent = { _ in discoveries += 1 }
+        model.onNewCompletedReset = { _ in completions += 1 }
         await model.refresh()
         await model.refresh()
         XCTAssertEqual(discoveries, 1)
@@ -175,20 +177,27 @@ final class MonitorModelTests: XCTestCase {
         MonitorURLProtocol.mode = .confirmedComplete
         await model.refresh()
         XCTAssertEqual(discoveries, 1)
-        XCTAssertNil(model.activeEvent)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertNil(model.activeEvent?.countdownAt)
+        XCTAssertEqual(completions, 1)
         await model.refresh()
-        XCTAssertNil(model.activeEvent)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
         XCTAssertEqual(discoveries, 1)
+        XCTAssertEqual(completions, 1)
     }
 
-    func testAnnouncementAlreadyCompletedInNewestFirstFeedNeverAlerts() async {
+    func testNewestFirstCompletionOnlyTriggersCompletedAlert() async {
         MonitorURLProtocol.mode = .confirmedComplete
         let model = makeModel()
         var discoveries = 0
+        var completions = 0
         model.onNewActionableEvent = { _ in discoveries += 1 }
+        model.onNewCompletedReset = { _ in completions += 1 }
         await model.refresh()
         XCTAssertEqual(discoveries, 0)
-        XCTAssertNil(model.activeEvent)
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertNil(model.activeEvent?.countdownAt)
     }
 
     func testTuesdayPromiseAndBankedRolloutProduceOneDiscovery() async {

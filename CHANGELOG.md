@@ -1,5 +1,17 @@
 # 版本记录 · Changelog
 
+## 0.3.2 — 2026-10-07
+
+- 新增独立的“刚刚已重置”通知：窗口自动显示、按声音设置响铃，并发送系统横幅；不生成倒计时。
+- 识别 reset has been processed / completed / applied 等完成表达，仍过滤否定、问句、猜测与发放中表述。
+- 主窗口、迷你窗和菜单栏显示完成标志；显示公告发布时间，可点“知道了”收起，24小时后自动归档。
+- 同次预告、完成及传播确认合并，保存已提醒记录；重复查询、重启、已忽略记录及旧公告不重复提醒。升级补发24小时内尚未提醒的完成公告。
+
+- Added separate reset-completed notices: automatic window reveal, sound according to preferences, and a system banner, without a countdown.
+- Recognizes processed / completed / applied reset wording while filtering negation, questions, speculation and in-progress claims.
+- Main / mini windows and the menu bar show completion; the announcement timestamp is displayed, with acknowledgement and 24-hour archival.
+- Previews, completion and propagation follow-ups share one event and persistent notification receipt. Rechecks, restarts, dismissals and stale posts remain quiet; upgrades backfill unnotified completions from the last 24 hours.
+
 ## 0.3.1 — 2026-10-02
 
 - 修复 “tomorrow 10am PST” 未写 at 导致明确时间被显示为待确认的问题。

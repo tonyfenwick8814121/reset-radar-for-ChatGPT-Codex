@@ -10,6 +10,22 @@ actor ReminderScheduler: ReminderScheduling {
     static let shared = ReminderScheduler()
     private let identifierPrefix = "reset-radar."
 
+    func notifyCompletion(event: ResetEvent, preferences: UserPreferences) async {
+        guard Bundle.main.bundleURL.pathExtension == "app" else { return }
+        let center = UNUserNotificationCenter.current()
+        var settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert])
+            settings = await center.notificationSettings()
+        }
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        let content = UNMutableNotificationContent()
+        content.title = preferences.locale == .zhHans ? "刚刚已重置 · Reset Radar" : "Reset completed · Reset Radar"
+        content.body = preferences.locale == .zhHans ? "发布者已宣布额度重置完成，请在账号内核对。" : "The publisher has confirmed a quota reset. Check your account."
+        content.sound = nil
+        try? await center.add(UNNotificationRequest(identifier: "\(identifierPrefix)\(event.id).completed", content: content, trigger: nil))
+    }
+
     func reconcile(events: [ResetEvent], preferences: UserPreferences, now: Date = Date()) async {
         guard Bundle.main.bundleURL.pathExtension == "app" else { return }
         let desired = desiredReminders(events: events, preferences: preferences, now: now)

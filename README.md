@@ -8,14 +8,14 @@
 
 ### 功能
 
-- 自动重置、手动重置及补偿机会提醒，支持手动录入公告。
+- 自动重置预告与完成通知、手动重置及补偿机会提醒，支持手动录入公告。
 - 悬浮窗、迷你窗、可选置顶；中英文切换和本地时区显示。
 - 检测间隔可选 1 / 5 / 10 / 15 / 20 分钟，默认 10 分钟；显示查询结果与来源状态。
 - 无需 X 登录或 API 密钥，不调用 AI，不消耗 ChatGPT / Codex 额度。
 
 ### 下载与环境
 
-**[下载 v0.3.1 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.1/Reset-Radar-0.3.1-arm64.zip)**
+**[下载 v0.3.2 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.2/Reset-Radar-0.3.2-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -23,11 +23,11 @@
 
 ### 版本更新
 
-**v0.3.1 · 2026-10-02**
+**v0.3.2 · 2026-10-07**
 
-- 修复 “tomorrow 10am PST” 缺少 at 时无法生成倒计时。
-- 按原帖日期计算“明天”，区分 PST / PDT 固定时差与 PT 夏令时。
-- 升级自动补全已有预告的时间，保留设置与处理记录。
+- 新增“刚刚已重置”通知，与预告倒计时区分。
+- 识别“重置已处理”等完成表达；同一次重置的后续消息不重复提醒。
+- 已重置状态保留24小时，可点“知道了”收起；升级补发近期漏掉的完成通知。
 
 [完整版本记录](CHANGELOG.md) · [所有下载](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)
 
@@ -37,14 +37,14 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Features
 
-- Automatic reset, manual reset and compensation alerts; manual announcement entry.
+- Automatic reset previews and completion notices, manual reset and compensation alerts; manual announcement entry.
 - Floating and mini windows, optional always-on-top, Chinese / English and local time zones.
 - Checks every 1 / 5 / 10 / 15 / 20 minutes (default: 10), with check results and source status.
 - No X login, API key, AI calls or ChatGPT / Codex quota usage.
 
 ### Download & requirements
 
-**[Download v0.3.1 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.1/Reset-Radar-0.3.1-arm64.zip)**
+**[Download v0.3.2 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.2/Reset-Radar-0.3.2-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
@@ -52,10 +52,10 @@ This preview is not Developer ID signed or notarized; macOS may block the first 
 
 ### Updates
 
-**v0.3.1 · 2026-10-02**
+**v0.3.2 · 2026-10-07**
 
-- Fixed missing countdowns for “tomorrow 10am PST” when “at” is omitted.
-- Anchors “tomorrow” to the post date; distinguishes fixed PST / PDT offsets from seasonal PT.
-- Upgrades restore timing for saved previews while preserving settings and handled records.
+- Added reset-completed notices, distinct from upcoming countdowns.
+- Recognizes processed / completed reset wording and deduplicates follow-up posts about the same reset.
+- Completion stays visible for 24 hours or until acknowledged; upgrades notify for recent missed completions.
 
 [Version history](CHANGELOG.md) · [All downloads](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)

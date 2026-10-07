@@ -4,7 +4,7 @@ import Foundation
 /// Local, deterministic claims: each sentence has its own action, polarity and time.
 /// A missing date never prevents a credible explicit announcement from being surfaced.
 struct AnnouncementClassifier {
-    static let version = 4
+    static let version = 6
     private let resolver = TimeResolver()
 
     func classify(_ item: FeedItem, source: FeedSource, fetchedAt: Date) -> ResetEvent? {
@@ -47,7 +47,8 @@ struct AnnouncementClassifier {
             }
             guard !uncertain && !question && !negated && !explanatory else { continue }
             let future = matches(#"\b(?:tomorrow|tonight|today|soon|later|next|upcoming|planned|planning|promise[ds]?|will|we'll|going to)\b|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|即将|明天|下周"#, sentence)
-            let completed = matches(#"\b(?:resets? (?:all )?propagated|already reset|have been reset|has been reset|limits (?:are |were )?reset for|usage (?:was )?reset for|returned to 100%|back to 100%|fully propagated)\b"#, sentence)
+            let processed = matches(#"\bresets? (?:has|have) been (?:processed|completed|applied)\b|\bwe (?:have )?(?:processed|completed|applied) (?:the |a |this )?(?:codex |chatgpt )?reset\b"#, sentence)
+            let completed = processed || matches(#"\b(?:resets? (?:all )?propagated|already reset|have been reset|has been reset|limits (?:are |were )?reset for|usage (?:was )?reset for|returned to 100%|back to 100%|fully propagated)\b"#, sentence)
             let promise = matches(#"\b(?:i|we) (?:have |had )?promised?\b.{0,60}\breset\b|\b(?:we|i) (?:will|are|am|'re|'m) (?:be )?(?:reset|resetting)\b|\bwe'll reset\b|\b(?:limits|quotas) (?:will |are going to )?reset\b|\bresets? (?:is |are |is also |are also |will be )?(?:landing|lands?|coming|planned|scheduled|rolling out)\b|\b(?:another|more|a) resets? (?:is |are )?(?:coming|next)\b|\b(?:reset|resetting)\b.{0,45}\b(?:tomorrow|tonight|next week)\b|将.{0,12}重置|即将重置"#, sentence)
             let grantAction = grant && matches(#"\b(?:get|gets|getting|receive|receives|receiving|give|giving|granting|awarding|loading|load|adding|added|add|restor\w*|reissu\w*|credited|crediting|available|arrive|arriving|lands?|landing|issued|distributed|expires?|valid until|use by|deadline)\b|getting another one|补发|发放|可用|失效|到期"#, sentence)
             let delivered = grant && matches(#"\b(?:has been added|have been added|added to|has been issued|have been issued|now available|is available|are available|already available|distributed|credited|restored|it is done|can now use|can now claim)\b|发放完成|已到账|已发放"#, sentence)
@@ -56,7 +57,7 @@ struct AnnouncementClassifier {
                 let notYet = matches(#"\b(?:tomorrow|tonight|next|later|will|going to)\b"#, sentence)
                 let stage = (delivered && !notYet) || (completed && !future) ? "available" : (rolling ? "rollingOut" : (future ? "preview" : "available"))
                 claims.append(Claim(text: sentence, grant: true, stage: stage, confirmed: trusted))
-            } else if !grant && completed && (!future || matches(#"fully propagated|resets? all propagated|already reset|have been reset"#, sentence)) {
+            } else if !grant && completed && (!future || processed || matches(#"fully propagated|resets? all propagated|already reset|have been reset"#, sentence)) {
                 claims.append(Claim(text: sentence, grant: false, stage: "completed", confirmed: trusted))
             } else if !grant && promise {
                 claims.append(Claim(text: sentence, grant: false, stage: "preview", confirmed: trusted))
@@ -119,13 +120,14 @@ struct AnnouncementClassifier {
                 kind: kind, timeMeaning: claim.grant ? (end == nil ? .grantAvailability : .grantExpiry) : (kind == .lead ? .unknown : .automaticReset),
                 confirmedAnnouncement: claim.confirmed && claim.stage != "unverified", state: state,
                 precision: target != nil || start != nil || end != nil ? .exact : .unknown,
-                title: claim.grant ? "发现重置机会" : "额度重置预告", titleEN: claim.grant ? "Reset opportunity" : "Quota reset announced",
+                title: claim.grant ? "发现重置机会" : (claim.stage == "completed" ? "重置已完成" : "额度重置预告"), titleEN: claim.grant ? "Reset opportunity" : (claim.stage == "completed" ? "Reset completed" : "Quota reset announced"),
                 targetAt: target, windowStart: start, windowEnd: nil, expiresAt: end,
-                products: products.isEmpty ? ["unspecified"] : products, audience: audience(lower), evidence: [evidence], firstSeenAt: fetchedAt, updatedAt: fetchedAt)
+                products: products.isEmpty ? ["unspecified"] : products, audience: audience(claim.stage == "completed" ? claim.text : lower), evidence: [evidence], firstSeenAt: fetchedAt, updatedAt: fetchedAt)
             event.classifierVersion = Self.version
             event.evidenceRank = rank
             event.announcementStage = claim.stage
             event.matchedText = claim.text
+            if claim.confirmed && claim.stage == "completed" { event.completedAt = item.publishedAt }
             // Retain distant, imprecise previews for updates without asserting an exact reset time.
             if claim.confirmed && ["preview", "rollingOut"].contains(claim.stage) {
                 let days: Double = matches(#"\bnext week\b|下周"#, claim.text) ? 14 : (matches(#"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"#, claim.text) ? 8 : 2)

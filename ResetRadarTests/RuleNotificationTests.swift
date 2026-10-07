@@ -4,14 +4,203 @@ import XCTest
 
 @MainActor
 final class RuleNotificationTests: XCTestCase {
-    private func makeModel() -> (MonitorModel, URL) {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("rr-rules-" + UUID().uuidString)
+    private func makeModel(directory: URL? = nil) -> (MonitorModel, URL) {
+        let directory = directory ?? FileManager.default.temporaryDirectory.appendingPathComponent("rr-rules-" + UUID().uuidString)
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [RuleFeedProtocol.self]
         let model = MonitorModel(store: LocalStore(directory: directory), client: FeedClient(session: URLSession(configuration: config)), scheduler: RecordingScheduler())
         RuleFeedProtocol.posts = []
         RuleFeedProtocol.summary = ""
+        RuleFeedProtocol.publication = Date().addingTimeInterval(-120)
         return (model, directory)
+    }
+
+    func testNewCompletionNotifiesOnceWithoutAnUpcomingCountdown() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "Therefore ... the reset has been processed. Enjoy!")]
+        RuleFeedProtocol.summary = "The Codex reset has been processed. Source: https://x.com/thsottiaux/status/10"
+        var completions = 0
+        var previews = 0
+        model.onNewCompletedReset = { _ in completions += 1 }
+        model.onNewActionableEvent = { _ in previews += 1 }
+        await model.refresh()
+        await model.refresh()
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(previews, 0)
+        XCTAssertEqual(model.events.count, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertNil(model.activeEvent?.countdownAt)
+        XCTAssertNotNil(model.activeEvent?.completionNotifiedAt)
+        let saved = await LocalStore(directory: dir).loadEventsResult()
+        XCTAssertNotNil(saved.value.first?.completionNotifiedAt)
+    }
+
+    func testCompletionReceiptSurvivesRestart() async {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "The Codex reset has been processed.")]
+        await model.refresh()
+        let (restarted, _) = makeModel(directory: dir)
+        defer { restarted.stop() }
+        RuleFeedProtocol.posts = [("10", "The Codex reset has been processed.")]
+        var completions = 0
+        restarted.onNewCompletedReset = { _ in completions += 1 }
+        await restarted.start().value
+        await restarted.refresh()
+        XCTAssertEqual(completions, 0)
+        XCTAssertEqual(restarted.activeEvent?.state, .announcedComplete)
+        XCTAssertNotNil(restarted.activeEvent?.completionNotifiedAt)
+    }
+
+    func testCompletionReceiptAndAliasesSurviveRuleUpgrade() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "We will reset Codex tomorrow."), ("11", "The Codex reset has been processed.")]
+        await model.refresh()
+        var saved = model.events
+        let receipt = try XCTUnwrap(saved.first?.completionNotifiedAt)
+        saved[0].classifierVersion = 4
+        try await LocalStore(directory: dir).saveEvents(saved)
+        let (restarted, _) = makeModel(directory: dir)
+        defer { restarted.stop() }
+        var completions = 0
+        restarted.onNewCompletedReset = { _ in completions += 1 }
+        await restarted.start().value
+        XCTAssertEqual(completions, 0)
+        XCTAssertEqual(restarted.activeEvent?.announcementStage, "completed")
+        XCTAssertEqual(restarted.activeEvent?.relatedPostIDs, ["status-11"])
+        XCTAssertEqual(restarted.activeEvent?.completionNotifiedAt?.timeIntervalSince1970 ?? 0, receipt.timeIntervalSince1970, accuracy: 1)
+    }
+
+    func testOldOrFutureDatedCompletionDoesNotNotify() async {
+        for offset in [-172_800.0, 900.0] {
+            let (model, dir) = makeModel()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            RuleFeedProtocol.publication = Date().addingTimeInterval(offset)
+            RuleFeedProtocol.posts = [("10", "The Codex reset has been processed.")]
+            var completions = 0
+            model.onNewCompletedReset = { _ in completions += 1 }
+            await model.refresh()
+            XCTAssertEqual(completions, 0)
+            XCTAssertNil(model.activeEvent)
+        }
+    }
+
+    func testPreviewCompletionAndPropagationShareOneReceipt() async {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "We will reset Codex tomorrow.")]
+        var completions = 0
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.refresh()
+        RuleFeedProtocol.posts.append(("11", "The Codex reset has been processed."))
+        await model.refresh()
+        let completedAt = model.activeEvent?.completedAt
+        RuleFeedProtocol.posts.append(("12", "Codex reset all propagated. Enjoy."))
+        await model.refresh()
+        await model.refresh()
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.events.count, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertEqual(model.activeEvent?.completedAt, completedAt)
+        XCTAssertNil(model.activeEvent?.countdownAt)
+        XCTAssertEqual(Set(model.activeEvent?.relatedPostIDs ?? []), Set(["status-11", "status-12"]))
+    }
+
+    func testDismissedPreviewDoesNotReappearAsACompletion() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "We will reset Codex tomorrow.")]
+        await model.refresh()
+        model.markEvent(try XCTUnwrap(model.activeEvent?.id), as: .dismissed)
+        var completions = 0
+        model.onNewCompletedReset = { _ in completions += 1 }
+        RuleFeedProtocol.posts.append(("11", "The Codex reset has been processed."))
+        await model.refresh()
+        XCTAssertEqual(completions, 0)
+        XCTAssertNil(model.activeEvent)
+        XCTAssertEqual(model.events.count, 1)
+    }
+
+    func testAcknowledgedCompletionStaysHiddenOnReplay() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "The Codex reset has been processed.")]
+        var completions = 0
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.refresh()
+        model.markEvent(try XCTUnwrap(model.activeEvent?.id), as: .dismissed)
+        await model.refresh()
+        RuleFeedProtocol.posts.append(("11", "Codex reset all propagated. Enjoy."))
+        await model.refresh()
+        XCTAssertEqual(completions, 1)
+        XCTAssertNil(model.activeEvent)
+        XCTAssertEqual(model.events.count, 1)
+    }
+
+    func testIndependentSecondCompletionStillNotifies() async {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "The Codex reset has been processed.")]
+        var completions = 0
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.refresh()
+        RuleFeedProtocol.posts.append(("11", "Another Codex reset has been processed."))
+        await model.refresh()
+        XCTAssertEqual(completions, 2)
+        XCTAssertEqual(model.events.count, 2)
+        XCTAssertEqual(model.activeEvent?.id, "status-11")
+    }
+
+    func testCompletionReturnsToIdleAfter24Hours() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "The Codex reset has been processed.")]
+        await model.refresh()
+        let event = try XCTUnwrap(model.activeEvent)
+        let publication = try XCTUnwrap(event.completedAt)
+        var events = model.events
+        XCTAssertTrue(MonitorModel.advanceLifecycle(&events, now: publication.addingTimeInterval(86_400)))
+        XCTAssertNil(MonitorModel.selectActiveEvent(events, now: publication.addingTimeInterval(86_400)))
+        XCTAssertEqual(events.first?.state, .archived)
+        XCTAssertNotNil(events.first?.completionNotifiedAt)
+    }
+
+    func testUpgradeBackfillsMissedFreshCompletionOnce() async throws {
+        let (model, dir) = makeModel()
+        defer { model.stop(); try? FileManager.default.removeItem(at: dir) }
+        let published = Date().addingTimeInterval(-120)
+        let item = FeedItem(id: "10", title: "", body: "The reset has been processed.", url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: published)
+        var legacy = try XCTUnwrap(AnnouncementClassifier().classify(item, source: FeedSource.defaults[0], fetchedAt: published))
+        legacy.kind = .lead
+        legacy.state = .unresolved
+        legacy.confirmedAnnouncement = false
+        legacy.announcementStage = "unverified"
+        legacy.classifierVersion = 4
+        legacy.completedAt = nil
+        try await LocalStore(directory: dir).saveEvents([legacy])
+        var completions = 0
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.start().value
+        await model.refresh()
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertNotNil(model.activeEvent?.completionNotifiedAt)
+    }
+
+    func testNewPreviewStillAlertsAfterCompletion() async {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "The Codex reset has been processed.")]
+        await model.refresh()
+        RuleFeedProtocol.posts.append(("11", "We will reset Codex again tomorrow."))
+        var previews = 0
+        model.onNewActionableEvent = { _ in previews += 1 }
+        await model.refresh()
+        XCTAssertEqual(previews, 1)
+        XCTAssertEqual(model.activeEvent?.announcementStage, "preview")
+        XCTAssertNil(model.completionNoticeID)
     }
 
     func testMixedPostNeverClosesItsOwnNewPreviewOnReplay() async {
@@ -172,7 +361,7 @@ final class RuleNotificationTests: XCTestCase {
 private final class RuleFeedProtocol: URLProtocol {
     static var posts: [(String, String)] = []
     static var summary = ""
-    static let publication = Date().addingTimeInterval(-120)
+    static var publication = Date().addingTimeInterval(-120)
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {

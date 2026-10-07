@@ -78,6 +78,14 @@ struct ResetEvent: Identifiable, Codable, Hashable, Sendable {
     var announcementStage: String? = nil
     var matchedText: String? = nil
     var reviewUntil: Date? = nil
+    var completedAt: Date? = nil
+    var completionNotifiedAt: Date? = nil
+
+    func isRecentCompletion(at now: Date) -> Bool {
+        guard kind == .automaticReset, confirmedAnnouncement, state == .announcedComplete,
+              let completedAt else { return false }
+        return completedAt <= now.addingTimeInterval(300) && completedAt > now.addingTimeInterval(-86_400)
+    }
 
     var isConfirmedOpportunity: Bool {
         confirmedAnnouncement || evidence.contains { $0.sourceKind == .manual }
@@ -88,13 +96,14 @@ struct ResetEvent: Identifiable, Codable, Hashable, Sendable {
     }
 
     var countdownAt: Date? {
-        kind == .bankedResetGrant ? expiresAt : targetAt
+        if state == .announcedComplete { return nil }
+        return kind == .bankedResetGrant ? expiresAt : targetAt
     }
 }
 
 extension ResetEvent {
     enum CodingKeys: String, CodingKey {
-        case relatedPostIDs, classifierVersion, evidenceRank, announcementStage, matchedText, reviewUntil
+        case relatedPostIDs, classifierVersion, evidenceRank, announcementStage, matchedText, reviewUntil, completedAt, completionNotifiedAt
         case id, revision, kind, timeMeaning, state, precision, title, titleEN, targetAt
         case windowStart, windowEnd, expiresAt, products, audience, evidence, firstSeenAt, updatedAt, confirmedAnnouncement
     }
@@ -108,6 +117,8 @@ extension ResetEvent {
         announcementStage = try values.decodeIfPresent(String.self, forKey: .announcementStage)
         matchedText = try values.decodeIfPresent(String.self, forKey: .matchedText)
         reviewUntil = try values.decodeIfPresent(Date.self, forKey: .reviewUntil)
+        completedAt = try values.decodeIfPresent(Date.self, forKey: .completedAt)
+        completionNotifiedAt = try values.decodeIfPresent(Date.self, forKey: .completionNotifiedAt)
         id = try values.decode(String.self, forKey: .id)
         revision = try values.decodeIfPresent(Int.self, forKey: .revision) ?? 1
         kind = try values.decode(ResetKind.self, forKey: .kind)
@@ -139,6 +150,8 @@ extension ResetEvent {
         try values.encodeIfPresent(announcementStage, forKey: .announcementStage)
         try values.encodeIfPresent(matchedText, forKey: .matchedText)
         try values.encodeIfPresent(reviewUntil, forKey: .reviewUntil)
+        try values.encodeIfPresent(completedAt, forKey: .completedAt)
+        try values.encodeIfPresent(completionNotifiedAt, forKey: .completionNotifiedAt)
         try values.encode(id, forKey: .id)
         try values.encode(revision, forKey: .revision)
         try values.encode(kind, forKey: .kind)

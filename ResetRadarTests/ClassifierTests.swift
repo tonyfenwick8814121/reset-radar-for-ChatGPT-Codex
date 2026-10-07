@@ -5,6 +5,30 @@ final class ClassifierTests: XCTestCase {
     private let classifier = AnnouncementClassifier()
     private let fetched = ISO8601DateFormatter().date(from: "2026-09-09T08:00:00Z")!
 
+    func testOctoberProcessedResetIsCompletionNotPreview() throws {
+        let item = FeedItem(id: "2107676072871600470", title: "",
+            body: "We shipped four things that were deemed good to great and some math proofs, but the vote is clear and the community demands a reset. I did calibrate it and it *seems* that the game is rigged in reset's favor, but such are the rules at the moment.\n\nTherefore ... the reset has been processed. Enjoy!",
+            url: URL(string: "https://x.com/thsottiaux/status/2107676072871600470"), publishedAt: fetched)
+        let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched))
+        XCTAssertTrue(event.confirmedAnnouncement)
+        XCTAssertEqual(event.kind, .automaticReset)
+        XCTAssertEqual(event.state, .announcedComplete)
+        XCTAssertEqual(event.announcementStage, "completed")
+        XCTAssertEqual(event.audience, "unknown", "Some math proofs must not imply a reset for only some users")
+        XCTAssertNil(event.countdownAt)
+    }
+
+    func testProcessedCompletionRequiresAnAffirmativeCompletedAction() throws {
+        for text in ["The Codex reset has been processed today.", "We have completed the Codex reset.", "The Codex reset has been applied."] {
+            let item = FeedItem(id: text, title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+            XCTAssertEqual(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched)?.state, .announcedComplete, text)
+        }
+        for text in ["The Codex reset has not been processed.", "Has the Codex reset been processed?", "Maybe the Codex reset has been processed.", "The Codex reset will be processed tomorrow.", "The Codex reset is being processed.", "Four updates or a reset. Or both. How was day 2."] {
+            let item = FeedItem(id: text, title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+            XCTAssertNotEqual(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched)?.state, .announcedComplete, text)
+        }
+    }
+
     func testOctoberGlobalResetHasBeijingCountdown() throws {
         let published = ISO8601DateFormatter().date(from: "2026-10-02T02:14:51Z")!
         let item = FeedItem(id: "2105843926221660585", title: "",

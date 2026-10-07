@@ -26,6 +26,11 @@ struct CountdownView: View {
             countdown(now: now)
             targetLine
             queryLine
+            if event?.state == .announcedComplete && !model.preferences.detailsExpanded {
+                Button(locale == .zhHans ? "知道了" : "Got it") {
+                    if let event { model.markEvent(event.id, as: .dismissed) }
+                }.buttonStyle(.plain).font(.system(size: 11, weight: .semibold)).foregroundStyle(accent).padding(.top, 8)
+            }
             Spacer(minLength: 8)
             if model.preferences.detailsExpanded { detailsPanel }
             detailsToggle
@@ -93,7 +98,12 @@ struct CountdownView: View {
     }
 
     @ViewBuilder private func countdown(now: Date) -> some View {
-        if let target = event?.countdownAt {
+        if event?.state == .announcedComplete {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 42))
+                Text(locale == .zhHans ? "已重置" : "Reset done").font(.system(size: 43, weight: .bold, design: .rounded))
+            }.foregroundStyle(accent).padding(.vertical, 10)
+        } else if let target = event?.countdownAt {
             Text(Self.remaining(target.timeIntervalSince(now)))
                 .font(.system(size: 67, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(.primary)
@@ -111,7 +121,9 @@ struct CountdownView: View {
 
     private var targetLine: some View {
         Group {
-            if let target = event?.countdownAt {
+            if event?.state == .announcedComplete, let published = event?.completedAt {
+                Text("\(locale == .zhHans ? "公告发布" : "Announced") · \(Self.format(published, zoneID: model.preferences.displayTimeZone, locale: locale)) · \(timeZoneLabel(for: published))")
+            } else if let target = event?.countdownAt {
                 let prefix = event?.kind == .bankedResetGrant
                     ? (locale == .zhHans ? "距失效" : "Expires in")
                     : (locale == .zhHans ? "预计重置" : "Expected reset")
@@ -273,7 +285,7 @@ struct CountdownView: View {
                         .font(.system(size: 9, weight: .semibold))
                 }
             }
-            if let excerpt = event.bestEvidence?.excerpt, !excerpt.isEmpty {
+            if let excerpt = event.state == .announcedComplete ? event.matchedText : event.bestEvidence?.excerpt, !excerpt.isEmpty {
                 Text(excerpt).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(2)
                     .textSelection(.enabled)
             }
@@ -283,7 +295,7 @@ struct CountdownView: View {
                 } else if event.state == .dueUnconfirmed {
                     Button(locale == .zhHans ? "确认已重置" : "Confirm reset") { model.markEvent(event.id, as: .announcedComplete) }
                 }
-                Button(locale == .zhHans ? "不再显示" : "Dismiss") { model.markEvent(event.id, as: .dismissed) }
+                Button(event.state == .announcedComplete ? (locale == .zhHans ? "知道了" : "Got it") : (locale == .zhHans ? "不再显示" : "Dismiss")) { model.markEvent(event.id, as: .dismissed) }
             }
             .buttonStyle(.borderless)
             .font(.system(size: 9, weight: .semibold))
@@ -344,6 +356,7 @@ struct CountdownView: View {
 
     private var accent: Color {
         guard let event else { return Color(red: 0.43, green: 0.47, blue: 0.53) }
+        if event.state == .announcedComplete { return .teal }
         if event.kind == .bankedResetGrant { return Color(red: 0.12, green: 0.68, blue: 0.45) }
         if event.targetAt.map({ $0 <= Date() }) == true { return Color(red: 0.78, green: 0.58, blue: 0.18) }
         if event.kind == .lead { return Color(red: 0.55, green: 0.40, blue: 0.86) }
@@ -352,6 +365,7 @@ struct CountdownView: View {
     }
 
     private var statusIcon: String {
+        if event?.state == .announcedComplete { return "checkmark.seal.fill" }
         if event?.kind == .bankedResetGrant { return "sparkles" }
         if event?.kind == .lead { return "questionmark.bubble.fill" }
         if event?.targetAt != nil { return "alarm.fill" }
@@ -360,6 +374,7 @@ struct CountdownView: View {
 
     private var statusTitle: String {
         guard let event else { return Copy.text(.noAnnouncement, locale) }
+        if event.state == .announcedComplete { return locale == .zhHans ? "重置已完成 · 请核对账号" : "Reset completed · Check your account" }
         if event.kind == .bankedResetGrant {
             if event.audience == "affected-reset-users" { return locale == .zhHans ? "手动重置补偿 · 请核对资格" : "Reset compensation · Check eligibility" }
             if event.state == .unresolved {

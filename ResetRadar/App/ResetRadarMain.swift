@@ -35,6 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             self?.panelController.showMain(center: true)
             if self?.model.preferences.audioEnabled == true { SoundService.preview(volume: self?.model.preferences.volume ?? 0.65) }
         }
+        model.onNewCompletedReset = { [weak self] event in
+            guard let self else { return }
+            self.panelController.showMain(center: true)
+            if self.model.preferences.audioEnabled { SoundService.preview(volume: self.model.preferences.volume) }
+            let preferences = self.model.preferences
+            Task { await ReminderScheduler.shared.notifyCompletion(event: event, preferences: preferences) }
+        }
         model.onPreferencesChanged = { [weak self] _ in
             self?.panelController.applyPinPreference()
             self?.setupMenuBar()
@@ -86,8 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let badge: String?
         let label: String
         if let event = model.activeEvent {
-            badge = event.kind == .bankedResetGrant ? "+" : (event.kind == .lead ? "?" : "•")
-            label = zh ? "发现重置公告" : "Reset announcement found"
+            badge = event.state == .announcedComplete ? "✓" : (event.kind == .bankedResetGrant ? "+" : (event.kind == .lead ? "?" : "•"))
+            label = event.state == .announcedComplete ? (zh ? "重置已完成" : "Reset completed") : (zh ? "发现重置公告" : "Reset announcement found")
         } else if model.failedSourceCount > 0 {
             badge = model.failedSourceCount == model.statuses.count ? "!" : "–"
             label = zh ? "来源检测异常" : "Source checks need attention"
