@@ -491,6 +491,8 @@ final class MonitorModel: ObservableObject {
     private func terminalAnnouncementID(_ announcement: ResetEvent) -> String? {
         if let known = events.first(where: { ($0.relatedPostIDs ?? []).contains(announcement.id) }) { return known.id }
         if events.contains(where: { $0.id == announcement.id }) { return nil }
+        if announcement.state == .announcedComplete,
+           announcement.matchedText?.range(of: #"\b(?:another|again|new reset)\b"#, options: .regularExpression) != nil { return nil }
         let matching = events.indices.filter { index in
             let event = events[index]
             // Different clauses of the same post are distinct claims, not a completion update.

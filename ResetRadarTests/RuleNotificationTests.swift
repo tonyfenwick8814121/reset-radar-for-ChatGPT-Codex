@@ -153,6 +153,20 @@ final class RuleNotificationTests: XCTestCase {
         XCTAssertEqual(model.activeEvent?.id, "status-11")
     }
 
+    func testIndependentCompletionDoesNotCloseAnUpcomingPreview() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "We will reset Codex tomorrow.")]
+        await model.refresh()
+        RuleFeedProtocol.posts.append(("11", "Another Codex reset has been processed."))
+        await model.refresh()
+        XCTAssertEqual(model.events.count, 2)
+        XCTAssertEqual(model.events.first { $0.id == "status-10" }?.state, .unresolved)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        model.markEvent(try XCTUnwrap(model.activeEvent?.id), as: .dismissed)
+        XCTAssertEqual(model.activeEvent?.id, "status-10")
+    }
+
     func testCompletionReturnsToIdleAfter24Hours() async throws {
         let (model, dir) = makeModel()
         defer { try? FileManager.default.removeItem(at: dir) }
