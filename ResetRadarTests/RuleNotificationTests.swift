@@ -36,6 +36,68 @@ final class RuleNotificationTests: XCTestCase {
         XCTAssertNotNil(saved.value.first?.completionNotifiedAt)
     }
 
+    func testEODPreviewAndSplitCompletionNotifyInSeparatePhasesOnlyOnce() async {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "Global reset by EOD. May the tokens do good things for you.")]
+        var previews = 0
+        var completions = 0
+        model.onNewActionableEvent = { _ in previews += 1 }
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.refresh()
+        await model.refresh()
+        XCTAssertEqual(previews, 1)
+        XCTAssertEqual(completions, 0)
+        RuleFeedProtocol.posts.append(("11", "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj"))
+        await model.refresh()
+        await model.refresh()
+        XCTAssertEqual(previews, 1)
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.events.count, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertNil(model.activeEvent?.countdownAt)
+        RuleFeedProtocol.posts.append(("12", "Codex reset. All propagated."))
+        await model.refresh()
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.events.count, 1)
+    }
+
+    func testUpgradeJoinsMissedEODPreviewAndSplitCompletion() async throws {
+        let (model, dir) = makeModel()
+        defer { model.stop(); try? FileManager.default.removeItem(at: dir) }
+        let posts = [("10", "Global reset by EOD."), ("11", "Put the reset in the bag. All propagated.")]
+        var legacy: [ResetEvent] = []
+        for (id, text) in posts {
+            let item = FeedItem(id: id, title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/\(id)"), publishedAt: RuleFeedProtocol.publication)
+            var event = try XCTUnwrap(AnnouncementClassifier().classify(item, source: FeedSource.defaults[0], fetchedAt: RuleFeedProtocol.publication))
+            event.kind = .lead
+            event.state = .unresolved
+            event.confirmedAnnouncement = false
+            event.announcementStage = "unverified"
+            event.classifierVersion = 6
+            event.completedAt = nil
+            legacy.append(event)
+        }
+        try await LocalStore(directory: dir).saveEvents(legacy)
+        RuleFeedProtocol.posts = posts
+        var previews = 0
+        var completions = 0
+        model.onNewActionableEvent = { _ in previews += 1 }
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.start().value
+        await model.refresh()
+        XCTAssertEqual(previews, 0)
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.events.count, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        let receipt = try XCTUnwrap(model.activeEvent?.completionNotifiedAt)
+        model.markEvent(try XCTUnwrap(model.activeEvent?.id), as: .dismissed)
+        await model.refresh()
+        XCTAssertNil(model.activeEvent, "Acknowledging the completion must not reveal its old preview")
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.events.first?.completionNotifiedAt, receipt)
+    }
+
     func testCompletionReceiptSurvivesRestart() async {
         let (model, dir) = makeModel()
         defer { try? FileManager.default.removeItem(at: dir) }

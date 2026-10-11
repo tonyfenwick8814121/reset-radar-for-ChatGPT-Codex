@@ -1,5 +1,15 @@
 # 版本记录 · Changelog
 
+## 0.3.3 — 2026-10-11
+
+- 修复可信发布者的 “Global reset by EOD” 等简短承诺被留在未确认状态；无精确时间或时区时提前提醒但不生成倒计时。
+- 修复 “Put the reset in the bag. All propagated.” 的跨句完成确认漏报；仅继承相邻、肯定且非未来承诺的自动重置上下文。
+- 同次完成及传播消息去重；升级关联已保存的漏报预告与完成，补发一次近期完成通知，保留处理状态。
+
+- Fixed trusted concise promises such as “Global reset by EOD” being left unconfirmed; imprecise timing alerts without inventing a countdown.
+- Fixed split completion confirmations such as “Put the reset in the bag. All propagated.”, using only adjacent affirmative automatic-reset context.
+- Deduplicates propagation follow-ups and joins missed saved previews with their completion on upgrade, backfilling one recent notice and preserving handled state.
+
 ## 0.3.2 — 2026-10-07
 
 - 新增独立的“刚刚已重置”通知：窗口自动显示、按声音设置响铃，并发送系统横幅；不生成倒计时。

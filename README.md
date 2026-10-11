@@ -15,7 +15,7 @@
 
 ### 下载与环境
 
-**[下载 v0.3.2 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.2/Reset-Radar-0.3.2-arm64.zip)**
+**[下载 v0.3.3 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.3/Reset-Radar-0.3.3-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -23,11 +23,11 @@
 
 ### 版本更新
 
-**v0.3.2 · 2026-10-07**
+**v0.3.3 · 2026-10-11**
 
-- 新增“刚刚已重置”通知，与预告倒计时区分。
-- 识别“重置已处理”等完成表达；同一次重置的后续消息不重复提醒。
-- 已重置状态保留24小时，可点“知道了”收起；升级补发近期漏掉的完成通知。
+- 修复“全球重置，日内完成”等简短预告漏报；缺少明确时区时不猜倒计时。
+- 识别相邻句子的“全部生效”完成确认，继续过滤猜测、问句和否定。
+- 升级关联本次漏掉的预告与完成记录，补提醒一次，避免旧预告重新出现。
 
 [完整版本记录](CHANGELOG.md) · [所有下载](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)
 
@@ -44,7 +44,7 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Download & requirements
 
-**[Download v0.3.2 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.2/Reset-Radar-0.3.2-arm64.zip)**
+**[Download v0.3.3 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.3.3/Reset-Radar-0.3.3-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
@@ -52,10 +52,10 @@ This preview is not Developer ID signed or notarized; macOS may block the first 
 
 ### Updates
 
-**v0.3.2 · 2026-10-07**
+**v0.3.3 · 2026-10-11**
 
-- Added reset-completed notices, distinct from upcoming countdowns.
-- Recognizes processed / completed reset wording and deduplicates follow-up posts about the same reset.
-- Completion stays visible for 24 hours or until acknowledged; upgrades notify for recent missed completions.
+- Fixed missed concise promises such as “Global reset by EOD”, without guessing a countdown or timezone.
+- Recognizes adjacent “All propagated” completion confirmations while filtering speculation, questions and negation.
+- Upgrades join the missed preview and completion, notify once and keep the old preview from resurfacing.
 
 [Version history](CHANGELOG.md) · [All downloads](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)

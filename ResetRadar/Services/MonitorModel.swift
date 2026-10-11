@@ -179,7 +179,7 @@ final class MonitorModel: ObservableObject {
                 for item in batch.items.sorted(by: { ($0.freshnessDate ?? .distantPast) < ($1.freshnessDate ?? .distantPast) }) {
                     for var candidate in classifier.classifyAll(item, source: source, fetchedAt: batch.fetchedAt).reversed() {
                         if candidate.confirmedAnnouncement && (candidate.state == .announcedComplete || candidate.state == .cancelled) {
-                            if let relatedID = terminalAnnouncementID(candidate) {
+                            if let relatedID = terminalAnnouncementID(candidate, among: events) {
                                 candidate.relatedPostIDs = [candidate.id]
                                 candidate.id = relatedID
                             }
@@ -488,7 +488,7 @@ final class MonitorModel: ObservableObject {
         return false
     }
 
-    private func terminalAnnouncementID(_ announcement: ResetEvent) -> String? {
+    private func terminalAnnouncementID(_ announcement: ResetEvent, among events: [ResetEvent]) -> String? {
         if let known = events.first(where: { ($0.relatedPostIDs ?? []).contains(announcement.id) }) { return known.id }
         if events.contains(where: { $0.id == announcement.id }) { return nil }
         if announcement.state == .announcedComplete,
@@ -516,7 +516,7 @@ final class MonitorModel: ObservableObject {
         if matching.count == 1, let index = matching.first { return events[index].id }
         // A propagation follow-up can update a recent completed reset without another alert.
         if matching.isEmpty, announcement.state == .announcedComplete,
-           announcement.matchedText?.range(of: #"fully propagated|resets? (?:all )?propagated"#, options: .regularExpression) != nil,
+           announcement.matchedText?.range(of: #"fully propagated|all propagated|resets? propagated"#, options: .regularExpression) != nil,
            announcement.matchedText?.range(of: #"\b(?:another|again|new reset)\b"#, options: .regularExpression) == nil {
             let completed = events.filter { event in
                 guard event.state == .announcedComplete, let date = event.completedAt,
@@ -531,7 +531,7 @@ final class MonitorModel: ObservableObject {
 
     // Re-evaluate old evidence silently on upgrade; never undo a user's used/dismissed choice.
     private func reclassifySavedEvents(_ saved: [ResetEvent]) -> [ResetEvent] {
-        saved.map { old in
+        var reclassified = saved.map { old in
             guard old.classifierVersion != AnnouncementClassifier.version,
                   !old.evidence.contains(where: { $0.sourceKind == .manual }),
                   ![.used, .dismissed, .archived].contains(old.state) else { return old }
@@ -560,6 +560,22 @@ final class MonitorModel: ObservableObject {
             if old.state == .cancelled || (old.state == .announcedComplete && old.kind != .bankedResetGrant) { revised.state = old.state }
             return revised
         }
+        // Joining newly confirmed saved completions also retires their missed previews.
+        // Otherwise acknowledging a backfilled completion would reveal the old preview again.
+        let missedCompletions = reclassified.filter { event in
+            event.state == .announcedComplete && event.completionNotifiedAt == nil &&
+                saved.contains { $0.id == event.id && !$0.confirmedAnnouncement && $0.classifierVersion != AnnouncementClassifier.version }
+        }.sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }
+        for var completion in missedCompletions {
+            let otherEvents = reclassified.filter { $0.id != completion.id }
+            guard let relatedID = terminalAnnouncementID(completion, among: otherEvents) else { continue }
+            let originalID = completion.id
+            completion.relatedPostIDs = Array(Set((completion.relatedPostIDs ?? []) + [originalID])).sorted()
+            completion.id = relatedID
+            _ = reconciler.merge(completion, into: &reclassified)
+            reclassified.removeAll { $0.id == originalID }
+        }
+        return reclassified
     }
 
     private func compatibleProducts(_ a: ResetEvent, _ b: ResetEvent) -> Bool {

@@ -5,6 +5,56 @@ final class ClassifierTests: XCTestCase {
     private let classifier = AnnouncementClassifier()
     private let fetched = ISO8601DateFormatter().date(from: "2026-09-09T08:00:00Z")!
 
+    @MainActor
+    func testOctoberEODCommitmentAlertsWithoutInventingATime() throws {
+        let published = ISO8601DateFormatter().date(from: "2026-10-10T22:16:20Z")!
+        let item = FeedItem(id: "2109045392684032299", title: "",
+            body: "Global reset by EOD. May the tokens do good things for you.",
+            url: URL(string: "https://x.com/thsottiaux/status/2109045392684032299"), publishedAt: published)
+        let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: published.addingTimeInterval(439)))
+        XCTAssertTrue(event.confirmedAnnouncement)
+        XCTAssertEqual(event.announcementStage, "preview")
+        XCTAssertTrue(MonitorModel().isActionable(event, now: published.addingTimeInterval(439)))
+        XCTAssertNil(event.countdownAt, "EOD without a timezone is not an exact reset time")
+    }
+
+    func testOctoberSplitPropagationIsACompletion() throws {
+        let published = ISO8601DateFormatter().date(from: "2026-10-11T04:01:09Z")!
+        let item = FeedItem(id: "2109132167112782291", title: "",
+            body: "Put the reset in the bag. All propagated. https://t.co/HGxaD3Zdcj",
+            url: URL(string: "https://x.com/thsottiaux/status/2109132167112782291"), publishedAt: published)
+        let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: published.addingTimeInterval(449)))
+        XCTAssertTrue(event.confirmedAnnouncement)
+        XCTAssertEqual(event.state, .announcedComplete)
+        XCTAssertEqual(event.completedAt, published)
+        XCTAssertNil(event.countdownAt)
+        XCTAssertTrue(event.matchedText?.contains("reset") == true)
+    }
+
+    func testConciseEODPromisesStillRequireAffirmativeTrustedClaims() throws {
+        for text in ["Global reset by EOD.", "Codex reset by end of day.", "Reset before the end of the day."] {
+            let item = FeedItem(id: text, title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+            XCTAssertEqual(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched)?.announcementStage, "preview", text)
+        }
+        for text in ["Maybe a global reset by EOD.", "Global reset by EOD?", "No global reset by EOD.", "Do not expect a global reset by EOD.", "We hope for a reset by EOD.", "The day we reach perfection it will be resets from there onwards.", "Day 6/ Reset", "Codex reset by design."] {
+            let item = FeedItem(id: text, title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+            XCTAssertNotEqual(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched)?.announcementStage, "preview", text)
+        }
+        let stranger = FeedItem(id: "stranger", title: "", body: "Global Codex reset by EOD.", url: URL(string: "https://x.com/stranger/status/10"), publishedAt: fetched)
+        XCTAssertFalse(classifier.classify(stranger, source: source("codex-reset-json"), fetchedAt: fetched)?.confirmedAnnouncement == true)
+    }
+
+    func testSplitPropagationRequiresUnambiguousNearbyAutomaticResetContext() throws {
+        for text in ["Codex reset. All propagated.", "The reset.\nFully propagated."] {
+            let item = FeedItem(id: text, title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+            XCTAssertEqual(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched)?.state, .announcedComplete, text)
+        }
+        for text in ["Maybe a reset. All propagated.", "No reset. All propagated.", "A reset? All propagated.", "Reset your password. All propagated.", "Codex reset tomorrow. All propagated.", "Codex reset. Composer updates. All propagated.", "Banked resets are now available. All propagated.", "Codex reset. All will be propagated tomorrow.", "Codex reset. Not all propagated."] {
+            let item = FeedItem(id: text, title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+            XCTAssertNotEqual(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched)?.state, .announcedComplete, text)
+        }
+    }
+
     func testOctoberProcessedResetIsCompletionNotPreview() throws {
         let item = FeedItem(id: "2107676072871600470", title: "",
             body: "We shipped four things that were deemed good to great and some math proofs, but the vote is clear and the community demands a reset. I did calibrate it and it *seems* that the game is rigged in reset's favor, but such are the rules at the moment.\n\nTherefore ... the reset has been processed. Enjoy!",

@@ -4,7 +4,7 @@ import Foundation
 /// Local, deterministic claims: each sentence has its own action, polarity and time.
 /// A missing date never prevents a credible explicit announcement from being surfaced.
 struct AnnouncementClassifier {
-    static let version = 6
+    static let version = 7
     private let resolver = TimeResolver()
 
     func classify(_ item: FeedItem, source: FeedSource, fetchedAt: Date) -> ResetEvent? {
@@ -30,12 +30,19 @@ struct AnnouncementClassifier {
         let sentences = text.replacingOccurrences(of: #"(?<=[.!?;。！？])\s+|\n+|\s+but\s+|\s+and\s+(?=(?:we|i|another|more|a new|the next)\b)"#, with: "\n", options: .regularExpression)
             .components(separatedBy: "\n").filter { !$0.isEmpty }
         var claims: [Claim] = []
+        var previousAutomaticReset: String?
         for sentence in sentences {
+            let resetContext = previousAutomaticReset
+            previousAutomaticReset = nil
             let grant = isGrant(sentence) || (globalGrant && matches(#"another one|getting|receiv|grant|expires?|valid until|use by|lands?\b|loading|added|it is done"#, sentence))
-            let relevant = matches(#"\breset(?:s|ting)?\b|额度重置|重置机会|手动重置"#, sentence) || grant
+            // An affirmative adjacent reset clause supplies the omitted subject in “All propagated.”
+            // Questions, speculation, grants, future promises and intervening topics never do.
+            let contextualPropagation = resetContext != nil && matches(#"^\s*(?:all|fully) propagated[.!。！]?\s*$"#, sentence)
+            let hasReset = matches(#"\breset(?:s|ting)?\b|额度重置|重置机会|手动重置"#, sentence)
+            let relevant = hasReset || grant || contextualPropagation
             guard relevant else { continue }
             if matches(#"password|factory reset|reset (?:your |the )?(?:password|settings|context)|重置密码"#, sentence) { continue }
-            let cancelled = matches(#"cancelled|canceled|called off|no longer planned|no (?:new |more )?(?:banked )?resets?\b|no reset is planned|will not (?:happen|reset|receive|get)|won't (?:reset|receive|get)|不会重置|预告取消"#, sentence)
+            let cancelled = matches(#"cancelled|canceled|called off|no longer planned|no (?:new |more |global )?(?:banked )?resets?\b|no reset is planned|will not (?:happen|reset|receive|get)|won't (?:reset|receive|get)|不会重置|预告取消"#, sentence)
             let eligibilityCondition = matches(#"\bif (?:your|you|the reset)\b.{0,65}\b(?:failed|affected|didn't|did not)\b"#, sentence)
             let uncertain = (!eligibilityCondition && matches(#"\b(?:maybe|might|could|would|rumou?rs?|probability|prediction|forecast|wish|hope|hoping|hopefully|please|likely|unlikely|joke|if)\b|可能性|传闻|预测"#, sentence))
             let question = sentence.contains("?") || sentence.contains("？") || matches(#"^\s*(?:how to|how do|what is|what are|can (?:i|we|you)|will (?:i|we|you)|does|do you)\b"#, sentence)
@@ -48,8 +55,8 @@ struct AnnouncementClassifier {
             guard !uncertain && !question && !negated && !explanatory else { continue }
             let future = matches(#"\b(?:tomorrow|tonight|today|soon|later|next|upcoming|planned|planning|promise[ds]?|will|we'll|going to)\b|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|即将|明天|下周"#, sentence)
             let processed = matches(#"\bresets? (?:has|have) been (?:processed|completed|applied)\b|\bwe (?:have )?(?:processed|completed|applied) (?:the |a |this )?(?:codex |chatgpt )?reset\b"#, sentence)
-            let completed = processed || matches(#"\b(?:resets? (?:all )?propagated|already reset|have been reset|has been reset|limits (?:are |were )?reset for|usage (?:was )?reset for|returned to 100%|back to 100%|fully propagated)\b"#, sentence)
-            let promise = matches(#"\b(?:i|we) (?:have |had )?promised?\b.{0,60}\breset\b|\b(?:we|i) (?:will|are|am|'re|'m) (?:be )?(?:reset|resetting)\b|\bwe'll reset\b|\b(?:limits|quotas) (?:will |are going to )?reset\b|\bresets? (?:is |are |is also |are also |will be )?(?:landing|lands?|coming|planned|scheduled|rolling out)\b|\b(?:another|more|a) resets? (?:is |are )?(?:coming|next)\b|\b(?:reset|resetting)\b.{0,45}\b(?:tomorrow|tonight|next week)\b|将.{0,12}重置|即将重置"#, sentence)
+            let completed = processed || contextualPropagation || matches(#"\b(?:resets? (?:all )?propagated|already reset|have been reset|has been reset|limits (?:are |were )?reset for|usage (?:was )?reset for|returned to 100%|back to 100%|fully propagated)\b"#, sentence)
+            let promise = matches(#"\b(?:i|we) (?:have |had )?promised?\b.{0,60}\breset\b|\b(?:we|i) (?:will|are|am|'re|'m) (?:be )?(?:reset|resetting)\b|\bwe'll reset\b|\b(?:limits|quotas) (?:will |are going to )?reset\b|\bresets? (?:is |are |is also |are also |will be )?(?:landing|lands?|coming|planned|scheduled|rolling out)\b|\b(?:another|more|a) resets? (?:is |are )?(?:coming|next)\b|\b(?:reset|resetting)\b.{0,45}\b(?:tomorrow|tonight|next week)\b|\bresets? (?:by|before) (?:eod|(?:the )?end of (?:the )?day|midnight)\b|将.{0,12}重置|即将重置"#, sentence)
             let grantAction = grant && matches(#"\b(?:get|gets|getting|receive|receives|receiving|give|giving|granting|awarding|loading|load|adding|added|add|restor\w*|reissu\w*|credited|crediting|available|arrive|arriving|lands?|landing|issued|distributed|expires?|valid until|use by|deadline)\b|getting another one|补发|发放|可用|失效|到期"#, sentence)
             let delivered = grant && matches(#"\b(?:has been added|have been added|added to|has been issued|have been issued|now available|is available|are available|already available|distributed|credited|restored|it is done|can now use|can now claim)\b|发放完成|已到账|已发放"#, sentence)
             let rolling = grant && matches(#"\b(?:loading|adding|rolling out|distributing)\b|发放中"#, sentence)
@@ -58,10 +65,12 @@ struct AnnouncementClassifier {
                 let stage = (delivered && !notYet) || (completed && !future) ? "available" : (rolling ? "rollingOut" : (future ? "preview" : "available"))
                 claims.append(Claim(text: sentence, grant: true, stage: stage, confirmed: trusted))
             } else if !grant && completed && (!future || processed || matches(#"fully propagated|resets? all propagated|already reset|have been reset"#, sentence)) {
-                claims.append(Claim(text: sentence, grant: false, stage: "completed", confirmed: trusted))
+                let completionText = contextualPropagation ? (resetContext.map { "\($0) \(sentence)" } ?? sentence) : sentence
+                claims.append(Claim(text: completionText, grant: false, stage: "completed", confirmed: trusted))
             } else if !grant && promise {
                 claims.append(Claim(text: sentence, grant: false, stage: "preview", confirmed: trusted))
             }
+            if hasReset && !grant && !future && !promise { previousAutomaticReset = sentence }
         }
 
         // Cancellation applies to the same type; a different new action is kept separately.
