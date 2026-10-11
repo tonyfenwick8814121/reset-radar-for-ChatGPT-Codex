@@ -15,6 +15,8 @@ final class MonitorModel: ObservableObject {
     private let scheduler: any ReminderScheduling
     private let classifier = AnnouncementClassifier()
     private let reconciler = EventReconciler()
+    let aiReview: AIReviewCoordinator
+    var onOpenAIReview: (() -> Void)?
     private var pollTask: Task<Void, Never>?
     private var lifecycleTask: Task<Void, Never>?
     var onNewActionableEvent: ((ResetEvent) -> Void)?
@@ -22,10 +24,11 @@ final class MonitorModel: ObservableObject {
     @Published private(set) var completionNoticeID: String?
     var onPreferencesChanged: ((UserPreferences) -> Void)?
 
-    init(store: LocalStore = LocalStore(), client: FeedClient = FeedClient(), scheduler: any ReminderScheduling = ReminderScheduler.shared) {
+    init(store: LocalStore = LocalStore(), client: FeedClient = FeedClient(), scheduler: any ReminderScheduling = ReminderScheduler.shared, aiReview: AIReviewCoordinator? = nil) {
         self.store = store
         self.client = client
         self.scheduler = scheduler
+        self.aiReview = aiReview ?? AIReviewCoordinator(store: store)
     }
 
     var activeEvent: ResetEvent? {
@@ -126,6 +129,7 @@ final class MonitorModel: ObservableObject {
             events = reclassifySavedEvents(loadedEvents.value)
             statuses = loadedStatuses.value
             preferences = loadedPreferences.value
+            await aiReview.load()
             storageMessage = [loadedEvents.issue, loadedStatuses.issue, loadedPreferences.issue].compactMap { $0 }.joined(separator: " · ")
             if storageMessage?.isEmpty == true { storageMessage = nil }
             preferences.launchAtLogin = LaunchAtLoginService.isEnabled
@@ -140,6 +144,7 @@ final class MonitorModel: ObservableObject {
     }
 
     func stop() {
+        aiReview.stop()
         pollTask?.cancel()
         pollTask = nil
         lifecycleTask?.cancel()
@@ -154,15 +159,16 @@ final class MonitorModel: ObservableObject {
 
         for source in FeedSource.defaults {
             let previous = status(for: source)
+            let needsOriginals = source.id == "codex-reset-json" && aiReview.state.posts.isEmpty
             if let cooldown = previous.cooldownUntil, cooldown > Date() { continue }
-            if !force, let next = previous.nextCheckAt, next > Date() { continue }
+            if !force, !(needsOriginals && previous.result == .success), let next = previous.nextCheckAt, next > Date() { continue }
             updateStatus(source) { status in
                 status.result = .checking
                 status.lastAttemptAt = Date()
                 status.message = nil
             }
             do {
-                let batch = try await client.fetch(source, previous: previous)
+                let batch = try await client.fetch(source, previous: needsOriginals ? nil : previous)
                 updateStatus(source) { status in
                     status.result = .success
                     status.lastTransportSuccessAt = batch.fetchedAt
@@ -176,6 +182,7 @@ final class MonitorModel: ObservableObject {
                     status.cooldownUntil = nil
                 }
                 guard !batch.notModified else { continue }
+                if source.id == "codex-reset-json" { await aiReview.ingest(batch.items, now: batch.fetchedAt) }
                 for item in batch.items.sorted(by: { ($0.freshnessDate ?? .distantPast) < ($1.freshnessDate ?? .distantPast) }) {
                     for var candidate in classifier.classifyAll(item, source: source, fetchedAt: batch.fetchedAt).reversed() {
                         if candidate.confirmedAnnouncement && (candidate.state == .announcedComplete || candidate.state == .cancelled) {
@@ -239,6 +246,7 @@ final class MonitorModel: ObservableObject {
             onNewActionableEvent?(opportunity)
         }
         await scheduler.reconcile(events: events, preferences: preferences, now: Date())
+        aiReview.kick()
     }
 
     func checkInterval(for source: FeedSource) -> TimeInterval {

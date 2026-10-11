@@ -211,6 +211,7 @@ struct CountdownView: View {
                     Text(locale == .zhHans ? "\(minutes) 分钟" : "\(minutes) min").tag(minutes)
                 }
             }.font(.system(size: 10)).controlSize(.small)
+            AIReviewSummaryView(reviewer: model.aiReview, locale: locale) { model.onOpenAIReview?() }
             ForEach(FeedSource.defaults) { source in
                 let status = model.statuses.first { $0.sourceID == source.id }
                 HStack(spacing: 8) {

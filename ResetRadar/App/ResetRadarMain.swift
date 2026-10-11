@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var model: MonitorModel!
     private var panelController: FloatingPanelController!
     private let manualEntryController = ManualEntryWindowController()
+    private let aiReviewController = AIReviewWindowController()
     private var statusItem: NSStatusItem!
     private var stateObservation: AnyCancellable?
 
@@ -35,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             self?.panelController.showMain(center: true)
             if self?.model.preferences.audioEnabled == true { SoundService.preview(volume: self?.model.preferences.volume ?? 0.65) }
         }
+        model.onOpenAIReview = { [weak self] in self?.showAIReview() }
+        model.aiReview.onReviewNotice = { [weak self] in self?.showAIReview() }
         model.onNewCompletedReset = { [weak self] event in
             guard let self else { return }
             self.panelController.showMain(center: true)
@@ -44,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         model.onPreferencesChanged = { [weak self] _ in
             self?.panelController.applyPinPreference()
+            if let self { self.aiReviewController.updatePreferences(self.model.preferences) }
             self?.setupMenuBar()
         }
         stateObservation = model.objectWillChange.sink { [weak self] in
@@ -79,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         pin.state = model.preferences.alwaysOnTop ? .on : .off
         menu.addItem(withTitle: zh ? "立即查询" : "Check now", action: #selector(refresh), keyEquivalent: "r")
         menu.addItem(withTitle: zh ? "手动添加公告…" : "Add announcement…", action: #selector(manualEntry), keyEquivalent: "n")
+        menu.addItem(withTitle: zh ? "AI 交叉验证…" : "AI cross-check…", action: #selector(showAIReview), keyEquivalent: "")
         menu.addItem(withTitle: zh ? "载入演示预告" : "Load preview", action: #selector(loadPreview), keyEquivalent: "")
         menu.addItem(withTitle: zh ? "清除演示预告" : "Clear preview", action: #selector(clearPreview), keyEquivalent: "")
         menu.addItem(.separator())
@@ -125,6 +130,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     @objc private func loadPreview() { model.addPreviewEvent(); panelController.showMain(center: true) }
     @objc private func clearPreview() { model.clearPreviewEvent(); panelController.showMain() }
+    @objc private func showAIReview() {
+        aiReviewController.show(model: model)
+    }
     @objc private func didWake() { Task { await model.handleWake() } }
     @objc private func clockChanged() { Task { await model.handleWake() } }
     @objc private func quit() {

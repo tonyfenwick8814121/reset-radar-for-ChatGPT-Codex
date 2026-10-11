@@ -275,16 +275,18 @@ struct FeedItem: Hashable, Sendable {
     let url: URL?
     let publishedAt: Date?
     let updatedAt: Date?
+    let replyParentID: String?
 
     var freshnessDate: Date? { publishedAt ?? updatedAt }
 
-    init(id: String, title: String, body: String, url: URL?, publishedAt: Date?, updatedAt: Date? = nil) {
+    init(id: String, title: String, body: String, url: URL?, publishedAt: Date?, updatedAt: Date? = nil, replyParentID: String? = nil) {
         self.id = id
         self.title = title
         self.body = body
         self.url = url
         self.publishedAt = publishedAt
         self.updatedAt = updatedAt
+        self.replyParentID = replyParentID
     }
 }
 

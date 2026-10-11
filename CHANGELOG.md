@@ -1,5 +1,14 @@
 # 版本记录 · Changelog
 
+## 0.4.0 — 2026-10-11
+
+- 新增默认关闭、需明确授权的 OpenRouter 免费模型交叉验证；所有新鲜 Tibo 原帖都参与复核，不以 reset 关键词预筛选。
+- AI 与现有规则独立判断，疑似漏报或分歧显示待核对与原文依据；保留规则提醒，不将 AI 判断自动升级为确认重置或倒计时。
+- 凭据仅保存在 macOS 钥匙串；固定 `openrouter/free`，禁止付费回退，同帖缓存，回复上文和编辑会更新缓存。
+- AI 授权失败、连接失败、格式/原文校验失败、限流单独展示；每 24 小时最多 20 次分析，每个版本最多两次尝试，停用取消后续处理。
+- Optional, explicitly authorized OpenRouter free-model cross-check. Rules remain independent; possible misses are shown as unverified review findings, with original evidence. Keychain storage, caching, bounded requests, no paid fallback.
+
+
 ## 0.3.3 — 2026-10-11
 
 - 修复可信发布者的 “Global reset by EOD” 等简短承诺被留在未确认状态；无精确时间或时区时提前提醒但不生成倒计时。

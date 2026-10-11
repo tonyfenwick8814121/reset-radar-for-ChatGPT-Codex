@@ -37,7 +37,7 @@ actor FeedClient {
     // Read original posts only; relay-generated event classifications are not evidence.
     static func parsePublicFeed(_ data: Data) throws -> [FeedItem] {
         struct PublicFeed: Decodable {
-            struct Post: Decodable { let id: String; let url: URL; let text: String; let at: String }
+            struct Post: Decodable { let id: String; let url: URL; let text: String; let at: String; let in_reply_to_tweet_id: String? }
             let stale: Bool
             let tweets: [Post]
         }
@@ -48,7 +48,7 @@ actor FeedClient {
         let plain = ISO8601DateFormatter()
         return try feed.tweets.map { post in
             guard let date = fractional.date(from: post.at) ?? plain.date(from: post.at) else { throw FeedError.invalidResponse }
-            return FeedItem(id: post.id, title: "", body: post.text, url: post.url, publishedAt: date)
+            return FeedItem(id: post.id, title: "", body: post.text, url: post.url, publishedAt: date, replyParentID: post.in_reply_to_tweet_id)
         }
     }
 

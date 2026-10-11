@@ -34,6 +34,8 @@ actor LocalStore {
     func saveEvents(_ events: [ResetEvent]) throws { try save(events, to: "events.json") }
     func saveStatuses(_ statuses: [SourceStatus]) throws { try save(statuses, to: "source-status.json") }
     func savePreferences(_ preferences: UserPreferences) throws { try save(preferences, to: "preferences.json") }
+    func loadAIReviewResult() -> StoreLoadResult<AIReviewState> { loadResult(AIReviewState.self, from: "ai-review.json", fallback: AIReviewState()) }
+    func saveAIReview(_ state: AIReviewState) throws { try save(state, to: "ai-review.json") }
 
     private func loadResult<T: Decodable & Sendable>(_ type: T.Type, from name: String, fallback: T) -> StoreLoadResult<T> {
         let url = directory.appendingPathComponent(name)
