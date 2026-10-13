@@ -6,6 +6,51 @@ final class ClassifierTests: XCTestCase {
     private let fetched = ISO8601DateFormatter().date(from: "2026-09-09T08:00:00Z")!
 
     @MainActor
+    func testOctober13EODPSTPreviewHasApproximateCountdown() throws {
+        let published = ISO8601DateFormatter().date(from: "2026-10-13T01:03:59Z")!
+        let item = FeedItem(id: "2109812360596865224", title: "",
+            body: "Global reset landing by EOD PST time. Enjoy",
+            url: URL(string: "https://x.com/thsottiaux/status/2109812360596865224"), publishedAt: published)
+        let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: published.addingTimeInterval(192)))
+        XCTAssertEqual(event.kind, .automaticReset)
+        XCTAssertEqual(event.state, .scheduled)
+        XCTAssertEqual(event.precision, .approximate)
+        XCTAssertEqual(event.countdownAt, ISO8601DateFormatter().date(from: "2026-10-13T08:00:00Z"))
+        XCTAssertEqual(event.resetDeadlineZone, "PST")
+        XCTAssertTrue(event.isResetDeadline)
+        XCTAssertTrue(MonitorModel().isActionable(event, now: published.addingTimeInterval(192)))
+    }
+
+    func testEndOfDayDeadlineDoesNotPromoteSpeculationOrManualGrants() throws {
+        for text in ["Maybe a global reset by EOD PST.", "Global reset by EOD PST?", "No global reset by EOD PST."] {
+            let item = FeedItem(id: "10", title: "", body: text, url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+            let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched))
+            XCTAssertTrue(!event.confirmedAnnouncement || event.state == .cancelled, text)
+            XCTAssertNil(event.countdownAt, text)
+            XCTAssertFalse(event.isResetDeadline, text)
+        }
+        let item = FeedItem(id: "10", title: "", body: "Codex users will receive a banked reset by EOD PST.", url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: fetched)
+        let grant = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: fetched))
+        XCTAssertEqual(grant.kind, .bankedResetGrant)
+        XCTAssertEqual(grant.state, .unresolved)
+        XCTAssertNil(grant.countdownAt)
+        XCTAssertFalse(grant.isResetDeadline)
+    }
+
+    func testEODDateQualifiersBeforeResetAreNotDropped() throws {
+        let published = ISO8601DateFormatter().date(from: "2026-10-13T01:03:59Z")!
+        for prefix in ["Monday", "Next week", "On October 20"] {
+            let item = FeedItem(id: "10", title: "", body: "\(prefix) global reset landing by EOD PST.", url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: published)
+            let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: published))
+            XCTAssertTrue(event.confirmedAnnouncement)
+            XCTAssertNil(event.countdownAt, prefix)
+        }
+        let item = FeedItem(id: "10", title: "", body: "Tomorrow global reset landing by EOD PST.", url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: published)
+        let event = try XCTUnwrap(classifier.classify(item, source: source("codex-reset-json"), fetchedAt: published))
+        XCTAssertEqual(event.countdownAt, ISO8601DateFormatter().date(from: "2026-10-14T08:00:00Z"))
+    }
+
+    @MainActor
     func testOctoberEODCommitmentAlertsWithoutInventingATime() throws {
         let published = ISO8601DateFormatter().date(from: "2026-10-10T22:16:20Z")!
         let item = FeedItem(id: "2109045392684032299", title: "",

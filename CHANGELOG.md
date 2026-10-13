@@ -1,5 +1,15 @@
 # 版本记录 · Changelog
 
+## 0.4.1 — 2026-10-13
+
+- 新增明确太平洋时区的 EOD / end of day 截止倒计时，以原帖当地日期的次日午夜作为估算上限，明确标注“预计最迟 / 可能提前”。
+- PST 固定 UTC−8、PDT 固定 UTC−7、PT 跟随夏令时；支持 today / tomorrow，缺少时区、发布时间或不支持的日期不猜测。
+- 修复已保存预告的倒计时；提前完成公告结束同一次倒计时，不另报新机会。到零仍等待确认，24 小时后归档。原有手动机会、用户处理状态及提示音规则保持。
+
+- Added estimated EOD / end-of-day deadline countdowns with explicit Pacific zones, anchored to the original publication date. Midnight is an estimate, not an exact reset instant.
+- PST is UTC−8, PDT UTC−7, and PT follows seasonal Pacific time. Missing context or unsupported dates remain unresolved.
+- Restores saved previews silently, joins early completion with the same opportunity, and waits for confirmation at zero before 24-hour archival. Manual grants, handled states and sound behavior are preserved.
+
 ## 0.4.0 — 2026-10-11
 
 - 新增默认关闭、需明确授权的 OpenRouter 免费模型交叉验证；所有新鲜 Tibo 原帖都参与复核，不以 reset 关键词预筛选。

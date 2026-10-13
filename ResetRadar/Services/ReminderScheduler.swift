@@ -47,7 +47,7 @@ actor ReminderScheduler: ReminderScheduling {
         for reminder in desired where !pendingIDs.contains(reminder.identifier) {
             let content = UNMutableNotificationContent()
             content.title = preferences.locale == .zhHans ? "归零 · Reset Radar" : "Reset Radar"
-            content.body = body(event: reminder.event, offset: reminder.offset, locale: preferences.locale)
+            content.body = Self.body(event: reminder.event, offset: reminder.offset, locale: preferences.locale)
             // Threshold and due notifications are visual only; discovery owns the chime.
             content.sound = nil
             let interval = max(1, reminder.fireDate.timeIntervalSince(now))
@@ -78,7 +78,7 @@ actor ReminderScheduler: ReminderScheduling {
             guard let target = fireTarget, target > now else { return [] }
             return ReminderPlanner.plan(target: target, offsets: preferences.reminderOffsets, now: now).map { reminder in
                 ScheduledReminder(
-                    identifier: "\(identifierPrefix)\(event.id).r\(event.revision).\(Int(reminder.offset)).\(preferences.locale.rawValue).silent-v2",
+                    identifier: "\(identifierPrefix)\(event.id).r\(event.revision).\(Int(reminder.offset)).\(preferences.locale.rawValue).silent-v3",
                     event: event,
                     offset: reminder.offset,
                     fireDate: reminder.fireDate
@@ -87,8 +87,15 @@ actor ReminderScheduler: ReminderScheduling {
         }
     }
 
-    private func body(event: ResetEvent, offset: TimeInterval, locale: AppLocale) -> String {
+    static func body(event: ResetEvent, offset: TimeInterval, locale: AppLocale) -> String {
         let isGrant = event.kind == .bankedResetGrant
+        if event.isResetDeadline {
+            if offset == 0 {
+                return locale == .zhHans ? "已到公告预计截止时间，重置完成仍待确认。" : "The estimated deadline has arrived. Reset completion is still unconfirmed."
+            }
+            let minutes = Int(offset / 60)
+            return locale == .zhHans ? "距公告预计截止还有 \(minutes) 分钟，可能提前完成。" : "Estimated deadline in \(minutes) minutes; the reset may finish earlier."
+        }
         if offset == 0 {
             if isGrant { return locale == .zhHans ? "手动重置机会已到失效时间。" : "The manual reset opportunity has reached its expiry time." }
             return locale == .zhHans ? "已到预计重置时间，等待确认。" : "The estimated reset time has arrived. Awaiting confirmation."

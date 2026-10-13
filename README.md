@@ -15,7 +15,7 @@
 
 ### 下载与环境
 
-**[下载 v0.4.0 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.0/Reset-Radar-0.4.0-arm64.zip)**
+**[下载 v0.4.1 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.1/Reset-Radar-0.4.1-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -23,13 +23,13 @@
 
 ### 版本更新
 
-**v0.4.0 · 2026-10-11**
+**v0.4.1 · 2026-10-13**
 
-- 新增默认关闭的 AI 交叉验证，授权后用 OpenRouter 免费模型独立理解新帖，保留规则提醒。
-- 结论不一致或疑似漏报时弹出“待核对”窗口，展示原文依据；失败、限流分别显示。
-- Key 存入 macOS 钥匙串；缓存结果，每 24 小时最多 20 次分析，无付费模型回退。
+- 修复明确时区的 EOD / end of day 预告没有倒计时的问题，显示“预计最迟”完成时间。
+- PST / PDT 使用原文固定时差，PT 按夏令时换算；EOD 按当地午夜估算，可能提前完成。
+- 升级静默补全已有预告；截止后等待确认，完成公告可提前结束倒计时。
 
-在菜单栏选择“AI 交叉验证…”即可配置。[配置说明](docs/AI_REVIEW.md)
+可选 AI 交叉验证默认关闭，配置方式见[说明](docs/AI_REVIEW.md)。
 
 [完整版本记录](CHANGELOG.md) · [所有下载](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)
 
@@ -46,7 +46,7 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Download & requirements
 
-**[Download v0.4.0 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.0/Reset-Radar-0.4.0-arm64.zip)**
+**[Download v0.4.1 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.1/Reset-Radar-0.4.1-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
@@ -54,12 +54,12 @@ This preview is not Developer ID signed or notarized; macOS may block the first 
 
 ### Updates
 
-**v0.4.0 · 2026-10-11**
+**v0.4.1 · 2026-10-13**
 
-- Added optional AI cross-check, off by default. Authorized OpenRouter free models independently interpret new posts while rule alerts continue.
-- Possible misses or disagreements open a review window with original evidence; failures and rate limits remain visible.
-- Keys stay in macOS Keychain. Results are cached, with up to 20 analyses per rolling 24 hours and no paid model fallback.
+- Fixed missing countdowns for EOD / end-of-day previews with an explicit time zone; displays an estimated completion deadline.
+- PST / PDT keep their stated offsets; PT follows daylight saving time. EOD is estimated at local midnight and the reset may finish earlier.
+- Silently restores saved preview countdowns on upgrade. Reaching the deadline awaits confirmation; an early completion notice ends the countdown.
 
-Choose “AI cross-check…” in the menu bar to configure it. [Setup guide](docs/AI_REVIEW.md)
+Optional AI cross-check is off by default. [Setup guide](docs/AI_REVIEW.md)
 
 [Version history](CHANGELOG.md) · [All downloads](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases)

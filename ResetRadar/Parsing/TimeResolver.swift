@@ -2,6 +2,7 @@ import Foundation
 
 enum Resolution: Equatable {
     case exact(Date)
+    case deadline(Date, zone: String)
     case unresolved(String)
 }
 
@@ -15,7 +16,39 @@ struct TimeResolver {
         if let result = resolveNamedDate(text) { return result }
         if let result = resolveTomorrow(text, publishedAt: publishedAt, verifiedContextZone: verifiedContextZone) { return result }
         if let result = resolveIANADate(text) { return result }
+        if let result = resolveEndOfDay(text, publishedAt: publishedAt) { return result }
         return .unresolved("No unambiguous date, time, and zone")
+    }
+
+    func resolveEndOfDay(_ text: String, publishedAt: Date?) -> Resolution? {
+        let pattern = #"(?i)\b(?:by|before)\s+(?:(?:today|tomorrow)\s+)?(?:EOD|(?:the\s+)?end of (?:the\s+)?day)(?:\s+(?:today|tomorrow))?\s+(?:in\s+)?(PST|PDT|PT|Pacific Standard Time|Pacific Daylight Time|Pacific Time)\b"#
+        guard let values = captures(pattern, in: text) else { return nil }
+        // Unsupported date qualifiers must not silently become the publication day.
+        if text.range(of: #"(?i)\b(?:yesterday|next|last|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}\b"#, options: .regularExpression) != nil {
+            return .unresolved("Unsupported EOD date qualifier")
+        }
+        let tomorrow = text.range(of: #"(?i)\btomorrow\b"#, options: .regularExpression) != nil
+        if tomorrow && text.range(of: #"(?i)\btoday\b"#, options: .regularExpression) != nil {
+            return .unresolved("Conflicting EOD date qualifiers")
+        }
+        let abbreviation: String
+        switch values[1].uppercased() {
+        case "PACIFIC STANDARD TIME": abbreviation = "PST"
+        case "PACIFIC DAYLIGHT TIME": abbreviation = "PDT"
+        case "PACIFIC TIME": abbreviation = "PT"
+        default: abbreviation = values[1].uppercased()
+        }
+        guard let publishedAt, let zone = pacificZone(abbreviation) else {
+            return .unresolved("EOD lacks a publication date or explicit source time zone")
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        let start = calendar.startOfDay(for: publishedAt)
+        guard let deadline = calendar.date(byAdding: .day, value: tomorrow ? 2 : 1, to: start) else {
+            return .unresolved("Cannot resolve EOD deadline")
+        }
+        // EOD is estimated as local midnight, not an exact reset instant.
+        return .deadline(deadline, zone: abbreviation)
     }
 
     private func resolveISO8601(_ text: String) -> Resolution? {

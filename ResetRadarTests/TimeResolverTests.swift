@@ -9,6 +9,47 @@ final class TimeResolverTests: XCTestCase {
         assertExact("Reset on September 9, 2026 at 14:00 PT.", equals: "2026-09-09T21:00:00Z")
     }
 
+    func testOctoberEODPSTHasADeadline() {
+        let published = iso.date(from: "2026-10-13T01:03:59Z")!
+        let result = resolver.resolve("Global reset landing by EOD PST time. Enjoy", publishedAt: published)
+        XCTAssertEqual(result, .deadline(iso.date(from: "2026-10-13T08:00:00Z")!, zone: "PST"))
+    }
+
+    func testEndOfDayVariantsUsePublicationDayAndStatedZone() {
+        let published = iso.date(from: "2026-10-13T01:03:59Z")!
+        for (zone, target, canonical) in [("PST", "2026-10-13T08:00:00Z", "PST"), ("PDT", "2026-10-13T07:00:00Z", "PDT"), ("PT", "2026-10-13T07:00:00Z", "PT"), ("Pacific Standard Time", "2026-10-13T08:00:00Z", "PST"), ("Pacific Time", "2026-10-13T07:00:00Z", "PT")] {
+            for phrase in ["by EOD", "before the end of the day", "by end of day today"] {
+                XCTAssertEqual(resolver.resolve("Global reset landing \(phrase) \(zone)", publishedAt: published),
+                               .deadline(iso.date(from: target)!, zone: canonical))
+            }
+        }
+    }
+
+    func testTomorrowEODAndWinterSeasonalPacific() {
+        let published = iso.date(from: "2026-12-13T01:03:59Z")!
+        for zone in ["PST", "PT"] {
+            XCTAssertEqual(resolver.resolve("Global reset by EOD tomorrow \(zone)", publishedAt: published),
+                           .deadline(iso.date(from: "2026-12-14T08:00:00Z")!, zone: zone))
+        }
+    }
+
+    func testEODAcrossDaylightSavingTransitionsUsesCalendarDays() {
+        for (published, deadline) in [("2026-03-08T09:00:00Z", "2026-03-09T07:00:00Z"), ("2026-11-01T08:00:00Z", "2026-11-02T08:00:00Z")] {
+            XCTAssertEqual(resolver.resolve("Reset by EOD PT", publishedAt: iso.date(from: published)),
+                           .deadline(iso.date(from: deadline)!, zone: "PT"))
+        }
+    }
+
+    func testEODWithoutRequiredContextOrWithUnsupportedDatesRemainsUnresolved() {
+        let published = iso.date(from: "2026-10-13T01:03:59Z")!
+        for text in ["Reset by EOD", "Reset by end of day", "Reset by EOD Monday PST", "Monday reset by EOD PST", "Reset next week by EOD PST", "Reset by EOD PST on October 20", "Reset by EOD PST on 10/20", "Reset tomorrow by EOD today PST", "Reset by EOD 5pm PST"] {
+            guard case .unresolved = resolver.resolve(text, publishedAt: published, verifiedContextZone: "America/Los_Angeles") else {
+                XCTFail("Do not guess a deadline for \(text)"); continue
+            }
+        }
+        guard case .unresolved = resolver.resolve("Reset by EOD PST") else { return XCTFail("Publication date is required") }
+    }
+
     func testWinterPT() {
         assertExact("Reset on December 9, 2026 at 14:00 PT.", equals: "2026-12-09T22:00:00Z")
     }

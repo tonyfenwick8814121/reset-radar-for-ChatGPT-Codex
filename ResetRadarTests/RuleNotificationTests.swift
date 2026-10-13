@@ -15,6 +15,54 @@ final class RuleNotificationTests: XCTestCase {
         return (model, directory)
     }
 
+    func testDeadlinePreviewCompletesEarlyWithoutCreatingAnotherOpportunity() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [("10", "Global reset landing by EOD PST time. Enjoy")]
+        var previews = 0
+        var completions = 0
+        model.onNewActionableEvent = { _ in previews += 1 }
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.refresh()
+        XCTAssertTrue(model.activeEvent?.isResetDeadline == true)
+        XCTAssertTrue(try XCTUnwrap(model.activeEvent?.targetAt) > RuleFeedProtocol.publication)
+        RuleFeedProtocol.posts.append(("11", "Resets all propagated. That will be all."))
+        await model.refresh()
+        await model.refresh()
+        XCTAssertEqual(previews, 1)
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.events.count, 1)
+        XCTAssertEqual(model.activeEvent?.id, "status-10")
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertNil(model.activeEvent?.countdownAt)
+        XCTAssertFalse(model.activeEvent?.isResetDeadline == true)
+    }
+
+    func testUpgradeRestoresSavedEODDeadlineSilentlyAndPreservesDismissals() async throws {
+        let (model, dir) = makeModel()
+        defer { model.stop(); try? FileManager.default.removeItem(at: dir) }
+        let published = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 120)
+        let source = try XCTUnwrap(FeedSource.defaults.first { $0.id == "codex-reset-json" })
+        let item = FeedItem(id: "10", title: "", body: "Global reset landing by EOD PST time. Enjoy", url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: published)
+        var legacy = try XCTUnwrap(AnnouncementClassifier().classify(item, source: source, fetchedAt: published))
+        legacy.kind = .lead; legacy.state = .unresolved; legacy.precision = .unknown
+        legacy.targetAt = nil; legacy.resetDeadlineZone = nil; legacy.timeMeaning = .unknown
+        legacy.classifierVersion = 7
+        var dismissed = legacy
+        dismissed.id = "dismissed"; dismissed.state = .dismissed
+        try await LocalStore(directory: dir).saveEvents([legacy, dismissed])
+        var alerts = 0
+        model.onNewActionableEvent = { _ in alerts += 1 }
+        await model.start().value
+        let revised = try XCTUnwrap(model.activeEvent)
+        XCTAssertTrue(revised.isResetDeadline)
+        XCTAssertEqual(revised.precision, .approximate)
+        XCTAssertEqual(revised.firstSeenAt, legacy.firstSeenAt)
+        XCTAssertEqual(revised.classifierVersion, AnnouncementClassifier.version)
+        XCTAssertEqual(alerts, 0)
+        XCTAssertEqual(model.events.first { $0.id == "dismissed" }?.state, .dismissed)
+    }
+
     func testNewCompletionNotifiesOnceWithoutAnUpcomingCountdown() async throws {
         let (model, dir) = makeModel()
         defer { try? FileManager.default.removeItem(at: dir) }

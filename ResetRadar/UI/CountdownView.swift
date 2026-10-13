@@ -25,6 +25,10 @@ struct CountdownView: View {
             statusHeader
             countdown(now: now)
             targetLine
+            if let zone = event?.resetDeadlineZone, event?.isResetDeadline == true, event?.state != .announcedComplete {
+                Text(locale == .zhHans ? "按原文 \(zone) 推算 · EOD 按午夜估算 · 可能提前完成" : "\(zone) as written · EOD estimated at midnight · May finish earlier")
+                    .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
+            }
             queryLine
             if event?.state == .announcedComplete && !model.preferences.detailsExpanded {
                 Button(locale == .zhHans ? "知道了" : "Got it") {
@@ -126,7 +130,7 @@ struct CountdownView: View {
             } else if let target = event?.countdownAt {
                 let prefix = event?.kind == .bankedResetGrant
                     ? (locale == .zhHans ? "距失效" : "Expires in")
-                    : (locale == .zhHans ? "预计重置" : "Expected reset")
+                    : (event?.isResetDeadline == true ? (locale == .zhHans ? "预计最迟" : "Expected by") : (locale == .zhHans ? "预计重置" : "Expected reset"))
                 Text("\(prefix) · \(Self.format(target, zoneID: model.preferences.displayTimeZone, locale: locale)) · \(timeZoneLabel(for: target))")
             } else if event?.kind == .bankedResetGrant {
                 Text(event?.state == .unresolved
@@ -290,6 +294,11 @@ struct CountdownView: View {
                 Text(excerpt).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(2)
                     .textSelection(.enabled)
             }
+            if event.isResetDeadline, event.resetDeadlineZone == "PST", let published = event.bestEvidence?.publishedAt,
+               TimeZone(identifier: "America/Los_Angeles")?.isDaylightSavingTime(for: published) == true {
+                Text(locale == .zhHans ? "原文 PST 按 UTC−8 换算。若作者泛指美西当前的夏令时，截止时间会早 1 小时；EOD 未给出精确时刻，请提前核对账号。" : "PST is treated as UTC−8. If the author meant current Pacific daylight time, the deadline is 1 hour earlier. EOD gives no exact time; check your account early.")
+                    .font(.system(size: 9)).foregroundStyle(.secondary)
+            }
             HStack {
                 if event.kind == .bankedResetGrant && event.state == .available {
                     Button(locale == .zhHans ? "标记已使用" : "Mark used") { model.markEvent(event.id, as: .used) }
@@ -388,6 +397,11 @@ struct CountdownView: View {
                 : (locale == .zhHans ? "手动重置机会 · 距失效" : "Manual reset opportunity · Expires in")
         }
         if event.kind == .lead { return Copy.text(.vagueLead, locale) }
+        if event.isResetDeadline {
+            return event.targetAt.map({ $0 <= Date() }) == true
+                ? (locale == .zhHans ? "预计截止已到 · 等待确认" : "Deadline reached · Awaiting confirmation")
+                : (locale == .zhHans ? "重置预告 · 截止倒计时" : "Reset preview · Deadline countdown")
+        }
         if event.targetAt.map({ $0 <= Date() }) == true {
             return locale == .zhHans ? "到达预计时间 · 等待确认" : "Estimated time reached · Awaiting confirmation"
         }

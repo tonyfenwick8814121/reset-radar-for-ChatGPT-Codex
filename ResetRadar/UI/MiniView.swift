@@ -72,7 +72,7 @@ struct MiniView: View {
         }
         let prefix = model.activeEvent?.kind == .bankedResetGrant
             ? (model.preferences.locale == .zhHans ? "失效" : "Expires")
-            : (model.preferences.locale == .zhHans ? "预计重置" : "Expected")
+            : (model.activeEvent?.isResetDeadline == true ? (model.preferences.locale == .zhHans ? "预计截止" : "Deadline") : (model.preferences.locale == .zhHans ? "预计重置" : "Expected"))
         return "\(prefix) · \(CountdownView.format(target, zoneID: model.preferences.displayTimeZone, locale: model.preferences.locale))"
     }
 
@@ -85,8 +85,10 @@ struct MiniView: View {
             return model.preferences.locale == .zhHans ? "手动重置机会" : "Manual reset opportunity"
         }
         if event.state == .dueUnconfirmed || event.targetAt.map({ $0 <= Date() }) == true {
+            if event.isResetDeadline { return model.preferences.locale == .zhHans ? "截止已到 · 等待确认" : "Deadline reached · Awaiting confirmation" }
             return model.preferences.locale == .zhHans ? "到点 · 等待确认" : "Due · Awaiting confirmation"
         }
+        if event.isResetDeadline { return model.preferences.locale == .zhHans ? "预计最迟完成 · 可能提前" : "Expected deadline · May finish earlier" }
         return Copy.text(.announced, model.preferences.locale)
     }
 

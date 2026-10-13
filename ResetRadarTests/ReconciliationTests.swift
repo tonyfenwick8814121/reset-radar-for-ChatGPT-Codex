@@ -13,6 +13,41 @@ final class ReconciliationTests: XCTestCase {
         XCTAssertEqual(events[0].revision, 1)
     }
 
+    @MainActor
+    func testDeadlineWaitsForConfirmationAtZeroThenArchivesAfter24Hours() {
+        let deadline = Date(timeIntervalSince1970: 10_000)
+        var preview = event(source: "rss", hash: "eod", target: deadline)
+        preview.precision = .approximate
+        preview.resetDeadlineZone = "PST"
+        var events = [preview]
+        XCTAssertTrue(MonitorModel.advanceLifecycle(&events, now: deadline))
+        XCTAssertEqual(events[0].state, .dueUnconfirmed)
+        XCTAssertNil(events[0].completedAt)
+        XCTAssertEqual(MonitorModel.selectActiveEvent(events, now: deadline)?.id, preview.id)
+        XCTAssertTrue(MonitorModel.advanceLifecycle(&events, now: deadline.addingTimeInterval(86_401)))
+        XCTAssertEqual(events[0].state, .archived)
+        XCTAssertNil(MonitorModel.selectActiveEvent(events, now: deadline.addingTimeInterval(86_401)))
+    }
+
+    func testDeadlineMetadataPersistsAndClearsOnTimeConflictOrExactCorrection() throws {
+        let deadline = Date(timeIntervalSince1970: 10_000)
+        var preview = event(source: "rss", hash: "eod", target: deadline)
+        preview.precision = .approximate
+        preview.resetDeadlineZone = "PST"
+        let decoded = try JSONDecoder().decode(ResetEvent.self, from: JSONEncoder().encode(preview))
+        XCTAssertEqual(decoded, preview)
+        var events = [preview]
+        let exact = event(source: "rss", hash: "exact", target: deadline)
+        XCTAssertEqual(EventReconciler().merge(exact, into: &events), .revised)
+        XCTAssertFalse(events[0].isResetDeadline)
+        XCTAssertEqual(events[0].precision, .exact)
+        events = [preview]
+        let conflict = event(source: "atom", hash: "other", target: deadline.addingTimeInterval(3600))
+        XCTAssertEqual(EventReconciler().merge(conflict, into: &events), .revised)
+        XCTAssertNil(events[0].resetDeadlineZone)
+        XCTAssertNil(events[0].countdownAt)
+    }
+
     func testTimeCorrectionIncrementsRevision() {
         let now = Date()
         var events = [event(source: "rss", hash: "one", target: now.addingTimeInterval(3600))]

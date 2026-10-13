@@ -60,6 +60,7 @@ struct EventReconciler {
         if crossSourceTimeConflict && (incoming.evidenceRank ?? 0) == (stored.evidenceRank ?? 0) {
             stored.revision += 1
             stored.targetAt = nil
+            stored.resetDeadlineZone = nil
             stored.state = .unresolved
             stored.precision = .unknown
             stored.updatedAt = max(stored.updatedAt, incoming.updatedAt)
@@ -74,7 +75,7 @@ struct EventReconciler {
         let productChanged = !Set(incoming.products.filter { $0 != "unspecified" }).isSubset(of: Set(stored.products))
         let meaningChanged = productChanged || stored.evidenceRank != incoming.evidenceRank || stored.announcementStage != incoming.announcementStage || stored.kind != incoming.kind || stored.timeMeaning != incoming.timeMeaning ||
             stored.state != incoming.state || stored.confirmedAnnouncement != incoming.confirmedAnnouncement || stored.targetAt != incoming.targetAt ||
-            stored.precision != incoming.precision || audienceChanged || expiryChanged || windowChanged
+            stored.precision != incoming.precision || stored.resetDeadlineZone != incoming.resetDeadlineZone || audienceChanged || expiryChanged || windowChanged
         if meaningChanged {
             stored.revision += 1
             stored.classifierVersion = incoming.classifierVersion
@@ -89,6 +90,7 @@ struct EventReconciler {
             stored.state = incoming.state
             stored.precision = incoming.precision
             stored.targetAt = incoming.targetAt
+            stored.resetDeadlineZone = incoming.resetDeadlineZone
             stored.windowStart = incoming.windowStart
             stored.windowEnd = incoming.windowEnd
             stored.expiresAt = incoming.expiresAt

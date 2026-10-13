@@ -485,7 +485,7 @@ final class MonitorModel: ObservableObject {
             return Self.isFreshUndated(event, now: now)
         }
         if event.kind == .automaticReset {
-            return event.state == .scheduled && event.precision == .exact &&
+            return event.state == .scheduled && (event.precision == .exact || event.isResetDeadline) &&
                 event.targetAt.map { $0 > now } == true
         }
         if event.kind == .bankedResetGrant {
@@ -518,7 +518,7 @@ final class MonitorModel: ObservableObject {
                     return terminalDate >= date && terminalDate.timeIntervalSince(date) <= 86_400
                 } == true &&
                 event.confirmedAnnouncement &&
-                (announcement.state == .cancelled || event.targetAt.map { $0 <= (announcement.bestEvidence?.publishedAt ?? .distantPast) } != false) &&
+                (announcement.state == .cancelled || event.isResetDeadline || event.targetAt.map { $0 <= (announcement.bestEvidence?.publishedAt ?? .distantPast) } != false) &&
                 compatibleProducts(event, announcement) && samePublisher(event, announcement)
         }
         if matching.count == 1, let index = matching.first { return events[index].id }

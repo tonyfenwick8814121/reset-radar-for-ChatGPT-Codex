@@ -80,6 +80,11 @@ struct ResetEvent: Identifiable, Codable, Hashable, Sendable {
     var reviewUntil: Date? = nil
     var completedAt: Date? = nil
     var completionNotifiedAt: Date? = nil
+    var resetDeadlineZone: String? = nil
+
+    var isResetDeadline: Bool {
+        kind == .automaticReset && targetAt != nil && resetDeadlineZone != nil
+    }
 
     func isRecentCompletion(at now: Date) -> Bool {
         guard kind == .automaticReset, confirmedAnnouncement, state == .announcedComplete,
@@ -103,7 +108,7 @@ struct ResetEvent: Identifiable, Codable, Hashable, Sendable {
 
 extension ResetEvent {
     enum CodingKeys: String, CodingKey {
-        case relatedPostIDs, classifierVersion, evidenceRank, announcementStage, matchedText, reviewUntil, completedAt, completionNotifiedAt
+        case relatedPostIDs, classifierVersion, evidenceRank, announcementStage, matchedText, reviewUntil, completedAt, completionNotifiedAt, resetDeadlineZone
         case id, revision, kind, timeMeaning, state, precision, title, titleEN, targetAt
         case windowStart, windowEnd, expiresAt, products, audience, evidence, firstSeenAt, updatedAt, confirmedAnnouncement
     }
@@ -119,6 +124,7 @@ extension ResetEvent {
         reviewUntil = try values.decodeIfPresent(Date.self, forKey: .reviewUntil)
         completedAt = try values.decodeIfPresent(Date.self, forKey: .completedAt)
         completionNotifiedAt = try values.decodeIfPresent(Date.self, forKey: .completionNotifiedAt)
+        resetDeadlineZone = try values.decodeIfPresent(String.self, forKey: .resetDeadlineZone)
         id = try values.decode(String.self, forKey: .id)
         revision = try values.decodeIfPresent(Int.self, forKey: .revision) ?? 1
         kind = try values.decode(ResetKind.self, forKey: .kind)
@@ -152,6 +158,7 @@ extension ResetEvent {
         try values.encodeIfPresent(reviewUntil, forKey: .reviewUntil)
         try values.encodeIfPresent(completedAt, forKey: .completedAt)
         try values.encodeIfPresent(completionNotifiedAt, forKey: .completionNotifiedAt)
+        try values.encodeIfPresent(resetDeadlineZone, forKey: .resetDeadlineZone)
         try values.encode(id, forKey: .id)
         try values.encode(revision, forKey: .revision)
         try values.encode(kind, forKey: .kind)

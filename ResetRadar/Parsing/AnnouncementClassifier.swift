@@ -4,7 +4,7 @@ import Foundation
 /// Local, deterministic claims: each sentence has its own action, polarity and time.
 /// A missing date never prevents a credible explicit announcement from being surfaced.
 struct AnnouncementClassifier {
-    static let version = 7
+    static let version = 8
     private let resolver = TimeResolver()
 
     func classify(_ item: FeedItem, source: FeedSource, fetchedAt: Date) -> ResetEvent? {
@@ -107,7 +107,18 @@ struct AnnouncementClassifier {
             let expiryText = suffix(from: #"\b(?:expires?|expiry|valid until|use by|deadline)\b|失效|到期"#, in: claim.text)
             let actionText = suffix(from: #"\breset(?:s|ting)?\b|重置"#, in: claim.text) ?? claim.text
             let startText = claim.grant ? prefix(before: #"\b(?:expires?|expiry|valid until|use by|deadline)\b|失效|到期"#, in: actionText) : actionText
-            let arrival = resolved(startText, publishedAt: item.publishedAt)
+            var resolution = resolver.resolve(startText, publishedAt: item.publishedAt)
+            if case .deadline = resolution {
+                // Keep date qualifiers before “reset”, e.g. “tomorrow ... reset by EOD PST”.
+                resolution = resolver.resolveEndOfDay(claim.text, publishedAt: item.publishedAt) ?? .unresolved("Missing EOD context")
+            }
+            let arrival: Date?
+            let deadlineZone: String?
+            switch resolution {
+            case .exact(let date): arrival = date; deadlineZone = nil
+            case .deadline(let date, let zone): arrival = claim.grant ? nil : date; deadlineZone = claim.grant ? nil : zone
+            case .unresolved: arrival = nil; deadlineZone = nil
+            }
             let expiry = claim.grant ? expiryText.flatMap { resolved($0, publishedAt: item.publishedAt) } : nil
             let canDate = claim.confirmed && !["cancelled", "unverified", "completed"].contains(claim.stage)
             let target = !claim.grant && canDate ? arrival : nil
@@ -128,11 +139,12 @@ struct AnnouncementClassifier {
             var event = ResetEvent(id: index == 0 ? canonical : "\(canonical)-\(claim.grant ? "grant" : "auto")-\(claim.stage)", revision: 1,
                 kind: kind, timeMeaning: claim.grant ? (end == nil ? .grantAvailability : .grantExpiry) : (kind == .lead ? .unknown : .automaticReset),
                 confirmedAnnouncement: claim.confirmed && claim.stage != "unverified", state: state,
-                precision: target != nil || start != nil || end != nil ? .exact : .unknown,
+                precision: target != nil && deadlineZone != nil ? .approximate : (target != nil || start != nil || end != nil ? .exact : .unknown),
                 title: claim.grant ? "发现重置机会" : (claim.stage == "completed" ? "重置已完成" : "额度重置预告"), titleEN: claim.grant ? "Reset opportunity" : (claim.stage == "completed" ? "Reset completed" : "Quota reset announced"),
                 targetAt: target, windowStart: start, windowEnd: nil, expiresAt: end,
                 products: products.isEmpty ? ["unspecified"] : products, audience: audience(claim.stage == "completed" ? claim.text : lower), evidence: [evidence], firstSeenAt: fetchedAt, updatedAt: fetchedAt)
             event.classifierVersion = Self.version
+            event.resetDeadlineZone = target != nil ? deadlineZone : nil
             event.evidenceRank = rank
             event.announcementStage = claim.stage
             event.matchedText = claim.text
