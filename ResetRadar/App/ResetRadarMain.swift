@@ -77,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         statusItem.button?.action = #selector(togglePanel)
 
         let zh = model?.preferences.locale != .en
+        NSApp.mainMenu = StandardEditingMenu.make(locale: model.preferences.locale)
+        let quitItem = NSApp.mainMenu?.items.first?.submenu?.addItem(withTitle: zh ? "退出 Reset Radar" : "Quit Reset Radar", action: #selector(quit), keyEquivalent: "q")
+        quitItem?.target = self
         let menu = NSMenu()
         menu.addItem(withTitle: zh ? "显示" : "Show", action: #selector(showPanel), keyEquivalent: "")
         let pin = menu.addItem(withTitle: zh ? "置顶窗口" : "Keep on top", action: #selector(togglePin), keyEquivalent: "")
@@ -97,7 +100,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let zh = model.preferences.locale == .zhHans
         let badge: String?
         let label: String
-        if let event = model.activeEvent {
+        if model.aiReview.needsAttention {
+            badge = "?"
+            label = model.activeEvent == nil
+                ? (zh ? "AI 发现线索 · 待核对" : "AI finding · Needs review")
+                : (zh ? "发现重置公告 · AI 有待核对结果" : "Reset announcement · AI review needed")
+        } else if let event = model.activeEvent {
             badge = event.state == .announcedComplete ? "✓" : (event.kind == .bankedResetGrant ? "+" : (event.kind == .lead ? "?" : "•"))
             label = event.state == .announcedComplete ? (zh ? "重置已完成" : "Reset completed") : (zh ? "发现重置公告" : "Reset announcement found")
         } else if model.failedSourceCount > 0 {

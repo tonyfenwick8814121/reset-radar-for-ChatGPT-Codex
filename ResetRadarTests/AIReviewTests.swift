@@ -1,4 +1,6 @@
 import Foundation
+import AppKit
+import Combine
 import XCTest
 @testable import ResetRadar
 
@@ -47,6 +49,97 @@ final class AIReviewTests: XCTestCase {
         let saved = await store.loadAIReviewResult()
         let json = String(data: try JSONEncoder().encode(saved.value), encoding: .utf8)!
         XCTAssertFalse(json.contains("test-key")); XCTAssertFalse(json.contains("Bearer"))
+    }
+
+    func testAuthorizationSuccessSurvivesAnalysisFailureAndClearsOnDisable() async throws {
+        let client = ReviewStub(); await client.setAnalysisFailure(AIReviewFailure.truncatedResponse)
+        let (reviewer, _, _, _) = try await setup(client: client)
+        await reviewer.ingest([post()])
+        let enabled = await authorize(reviewer)
+        await finish(reviewer)
+        XCTAssertTrue(enabled)
+        XCTAssertTrue(reviewer.authorizationSucceeded)
+        XCTAssertTrue(reviewer.state.enabled)
+        XCTAssertTrue(reviewer.hasKey)
+        XCTAssertEqual(reviewer.recentRecords.first?.failure, .truncatedResponse)
+        await reviewer.disable()
+        XCTAssertFalse(reviewer.authorizationSucceeded)
+    }
+
+    func testOctober15FindingIsVisibleWithoutARuleEventAndUpdatesOuterModel() async throws {
+        let text = "Landing within the next 2 hours"
+        let client = ReviewStub()
+        var value = claim(quote: text)
+        value.timeText = "within the next 2 hours"
+        await client.setAnalysis(AIAnalysis(claims: [value], contextMissing: false))
+        let (reviewer, _, _, store) = try await setup(client: client)
+        let model = MonitorModel(store: store, scheduler: QuietAIScheduler(), aiReview: reviewer)
+        var changes = 0
+        let observation = model.objectWillChange.sink { changes += 1 }
+        let parent = post("2110595484180214059", "The reports of my reset button being lost are greatly exaggerated\n\nDay 10/ Reset", date: Date().addingTimeInterval(-120))
+        let reply = post("2110595554036400151", text, parent: parent.id)
+        await reviewer.ingest([parent, reply]); _ = await authorize(reviewer); await finish(reviewer)
+        XCTAssertNil(model.activeEvent, "AI findings do not create confirmed rule events")
+        XCTAssertTrue(reviewer.needsAttention)
+        XCTAssertTrue(reviewer.attentionTitle(.zhHans).contains("待核对"))
+        XCTAssertTrue(reviewer.attentionTitle(.en).contains("Needs review"))
+        XCTAssertTrue(reviewer.attentionTiming(.zhHans).contains("within the next 2 hours"))
+        XCTAssertGreaterThan(changes, 0, "Main, mini and menu must observe nested AI changes")
+        for record in reviewer.recentRecords { await reviewer.acknowledge(record.id) }
+        XCTAssertFalse(reviewer.needsAttention)
+        observation.cancel()
+    }
+
+    func testAttentionExpiryAndDisableDoNotShowAFalseFinding() async throws {
+        let now = Date()
+        let original = try XCTUnwrap(AIOriginalPost(post(date: now.addingTimeInterval(-90_000))))
+        var record = AIReviewRecord(fingerprint: AIReviewInput(post: original, parent: nil).fingerprint, postID: original.id)
+        record.status = .success; record.comparison = .possibleMiss; record.analysis = AIAnalysis(claims: [claim()], contextMissing: false)
+        var state = AIReviewState(); state.enabled = true; state.keyConfigured = true; state.posts = [original]; state.records = [record]
+        let (reviewer, _, _, _) = try await setup(key: "test-key", saved: state)
+        XCTAssertFalse(reviewer.needsAttention, "Old findings expire after 24 hours")
+        await reviewer.ingest([post()]); _ = await authorize(reviewer); await finish(reviewer)
+        await reviewer.disable()
+        XCTAssertFalse(reviewer.needsAttention)
+    }
+
+    func testDetailedFailureMetadataPersistsWithoutServerTextOrCredentials() async throws {
+        let client = ReviewStub()
+        let detail = AIReviewDiagnostic(httpStatus: 200, finishReason: "length", completionTokens: 1200, reasoningTokens: 1195)
+        await client.setAnalysisFailure(AIReviewError(failure: .truncatedResponse, diagnostic: detail))
+        let (reviewer, _, _, store) = try await setup(client: client)
+        await reviewer.ingest([post()]); _ = await authorize(reviewer); await finish(reviewer)
+        let saved = await store.loadAIReviewResult()
+        XCTAssertEqual(saved.value.records.first?.failure, .truncatedResponse)
+        XCTAssertEqual(saved.value.records.first?.diagnostic?.reasoningTokens, 1195)
+        XCTAssertEqual(saved.value.records.first?.diagnostic?.finishReason, "length")
+        let json = String(data: try JSONEncoder().encode(saved.value), encoding: .utf8)!
+        XCTAssertFalse(json.contains("test-key"))
+        XCTAssertFalse(json.contains("Bearer"))
+    }
+
+    func testRetryExhaustionAndCooldownExplainWhyRetryIsDisabled() async throws {
+        let client = ReviewStub(); await client.setAnalysisFailure(AIReviewFailure.network)
+        let (reviewer, _, _, _) = try await setup(client: client)
+        await reviewer.ingest([post()]); _ = await authorize(reviewer); await finish(reviewer)
+        XCTAssertTrue(reviewer.canRetryFailures)
+        await reviewer.retryFailures(); await finish(reviewer)
+        XCTAssertFalse(reviewer.canRetryFailures)
+        XCTAssertTrue(reviewer.retryExplanation(.zhHans)?.contains("2次") == true)
+        XCTAssertTrue(reviewer.retryExplanation(.en)?.contains("both attempts") == true)
+    }
+
+    func testStandardEditingMenuRoutesCommandShortcutsToFocusedResponder() {
+        for locale in [AppLocale.zhHans, .en] {
+            let menu = StandardEditingMenu.make(locale: locale)
+            let actions = menu.items.flatMap { $0.submenu?.items ?? [] }
+            for (key, selector) in [("v", "paste:"), ("a", "selectAll:"), ("c", "copy:"), ("x", "cut:")] {
+                let item = actions.first { $0.keyEquivalent == key }
+                XCTAssertEqual(item?.action, Selector(selector))
+                XCTAssertTrue(item?.keyEquivalentModifierMask.contains(.command) == true)
+                XCTAssertNil(item?.target)
+            }
+        }
     }
 
     private func authorize(_ reviewer: AIReviewCoordinator) async -> Bool { await reviewer.authorize(key: "test-key", consent: true) }
@@ -193,6 +286,8 @@ final class AIReviewTests: XCTestCase {
         XCTAssertFalse(String(data: body, encoding: .utf8)!.contains("test-key"))
         let messages = try XCTUnwrap(json["messages"] as? [[String: String]])
         XCTAssertFalse(messages[1]["content"]!.contains("rule"))
+        XCTAssertEqual(json["max_tokens"] as? Int, 4096)
+        XCTAssertEqual((json["reasoning"] as? [String: Any])?["effort"] as? String, "low")
     }
 
     func testDecodeRejectsInventedQuoteTimeAndTruncatedOutput() throws {
@@ -341,7 +436,38 @@ final class OpenRouterReviewClientTests: XCTestCase {
     func testRedirectResponseIsRejectedRatherThanUsedAsAnalysis() async throws {
         let client = client(); AIHTTPStub.status = 302; AIHTTPStub.headers = ["Location": "https://example.invalid/"]
         do { try await client.validateKey("test-key"); XCTFail("Should fail") }
-        catch { XCTAssertEqual(error as? AIReviewFailure, .invalidResponse) }
+        catch { XCTAssertEqual((error as? AIReviewError)?.failure, .malformedResponse) }
+    }
+
+    func testServiceRequestAndQuotaFailuresAreDistinctAndSanitized() async throws {
+        for (status, failure) in [(503, AIReviewFailure.serviceUnavailable), (502, .serviceUnavailable), (400, .requestRejected), (402, .quotaUnavailable)] {
+            let client = client(); AIHTTPStub.status = status
+            AIHTTPStub.data = Data(#"{"error":{"message":"do not echo test-key"}}"#.utf8)
+            do { try await client.validateKey("test-key"); XCTFail("Should fail") }
+            catch {
+                let typed = try XCTUnwrap(error as? AIReviewError)
+                XCTAssertEqual(typed.failure, failure)
+                XCTAssertEqual(typed.diagnostic.httpStatus, status)
+                XCTAssertFalse(String(describing: typed).contains("test-key"))
+            }
+        }
+    }
+
+    func testDecodeDifferentiatesTruncationEmptyFormatAndEvidence() throws {
+        let item = FeedItem(id: "10", title: "", body: "Global reset by EOD.", url: URL(string: "https://x.com/thsottiaux/status/10"), publishedAt: Date())
+        let input = AIReviewInput(post: try XCTUnwrap(AIOriginalPost(item)), parent: nil)
+        for (finish, content, reason) in [("length", "", AIReviewFailure.truncatedResponse), ("stop", "", .emptyResponse), ("stop", "not JSON", .malformedResponse), ("error", "", .serviceUnavailable), ("content_filter", "", .refusedResponse)] {
+            let data = try JSONSerialization.data(withJSONObject: ["model": "test:free", "choices": [["finish_reason": finish, "message": ["content": content]]], "usage": ["completion_tokens": 1200, "completion_tokens_details": ["reasoning_tokens": 1198]]])
+            XCTAssertThrowsError(try OpenRouterReviewClient.decode(data, input: input)) { error in
+                let typed = error as? AIReviewError
+                XCTAssertEqual(typed?.failure, reason)
+                XCTAssertEqual(typed?.diagnostic.finishReason, finish)
+                XCTAssertEqual(typed?.diagnostic.reasoningTokens, 1198)
+            }
+        }
+        let bad = AIAnalysis(claims: [AIClaim(type: .automatic, phase: .preview, explicit: true, quote: "Invented quote", noteZH: "预告", noteEN: "Preview")], contextMissing: false)
+        let data = try JSONSerialization.data(withJSONObject: ["model": "test:free", "choices": [["finish_reason": "stop", "message": ["content": String(data: try JSONEncoder().encode(bad), encoding: .utf8)!]]]])
+        XCTAssertThrowsError(try OpenRouterReviewClient.decode(data, input: input)) { error in XCTAssertEqual((error as? AIReviewError)?.failure, .evidenceMismatch) }
     }
 }
 

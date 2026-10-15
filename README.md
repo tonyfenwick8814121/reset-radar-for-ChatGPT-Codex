@@ -15,7 +15,7 @@
 
 ### 下载与环境
 
-**[下载 v0.4.1 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.1/Reset-Radar-0.4.1-arm64.zip)**
+**[下载 v0.4.2 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.2/Reset-Radar-0.4.2-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -23,11 +23,11 @@
 
 ### 版本更新
 
-**v0.4.1 · 2026-10-13**
+**v0.4.2 · 2026-10-15**
 
-- 修复明确时区的 EOD / end of day 预告没有倒计时的问题，显示“预计最迟”完成时间。
-- PST / PDT 使用原文固定时差，PT 按夏令时换算；EOD 按当地午夜估算，可能提前完成。
-- 升级静默补全已有预告；截止后等待确认，完成公告可提前结束倒计时。
+- 修复 Key 输入框的 ⌘V / ⌘A 等快捷键，授权成功后显示明确的绿色确认。
+- AI 待核对发现同步显示在主窗口、迷你窗及菜单栏，可点击查看依据。
+- 细分分析失败原因，降低回答截断风险，并解释重试限制；免费调用与次数上限保持。
 
 可选 AI 交叉验证默认关闭，配置方式见[说明](docs/AI_REVIEW.md)。
 
@@ -46,7 +46,7 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Download & requirements
 
-**[Download v0.4.1 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.1/Reset-Radar-0.4.1-arm64.zip)**
+**[Download v0.4.2 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.2/Reset-Radar-0.4.2-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
@@ -54,11 +54,11 @@ This preview is not Developer ID signed or notarized; macOS may block the first 
 
 ### Updates
 
-**v0.4.1 · 2026-10-13**
+**v0.4.2 · 2026-10-15**
 
-- Fixed missing countdowns for EOD / end-of-day previews with an explicit time zone; displays an estimated completion deadline.
-- PST / PDT keep their stated offsets; PT follows daylight saving time. EOD is estimated at local midnight and the reset may finish earlier.
-- Silently restores saved preview countdowns on upgrade. Reaching the deadline awaits confirmation; an early completion notice ends the countdown.
+- Fixed standard key-field shortcuts, with clear green confirmation after authorization.
+- AI findings appear in the main window, mini window and menu bar, with direct access to evidence.
+- Clearer failure reasons, lower truncation risk and visible retry limits; free-only routing and request caps are preserved.
 
 Optional AI cross-check is off by default. [Setup guide](docs/AI_REVIEW.md)
 

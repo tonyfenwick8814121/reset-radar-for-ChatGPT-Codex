@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 
 @MainActor
@@ -16,6 +17,7 @@ final class MonitorModel: ObservableObject {
     private let classifier = AnnouncementClassifier()
     private let reconciler = EventReconciler()
     let aiReview: AIReviewCoordinator
+    private var aiReviewObservation: AnyCancellable?
     var onOpenAIReview: (() -> Void)?
     private var pollTask: Task<Void, Never>?
     private var lifecycleTask: Task<Void, Never>?
@@ -29,6 +31,9 @@ final class MonitorModel: ObservableObject {
         self.client = client
         self.scheduler = scheduler
         self.aiReview = aiReview ?? AIReviewCoordinator(store: store)
+        aiReviewObservation = self.aiReview.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
     }
 
     var activeEvent: ResetEvent? {

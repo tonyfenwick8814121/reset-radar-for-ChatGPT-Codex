@@ -30,6 +30,11 @@ struct CountdownView: View {
                     .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
             }
             queryLine
+            if model.aiReview.needsAttention {
+                Button { model.onOpenAIReview?() } label: {
+                    Label(locale == .zhHans ? "AI 有待核对结果 · 查看依据 ↗" : "AI review needed · Open evidence ↗", systemImage: "exclamationmark.bubble.fill")
+                }.buttonStyle(.plain).font(.system(size: 10, weight: .semibold)).foregroundStyle(.orange).padding(.top, 6)
+            }
             if event?.state == .announcedComplete && !model.preferences.detailsExpanded {
                 Button(locale == .zhHans ? "知道了" : "Got it") {
                     if let event { model.markEvent(event.id, as: .dismissed) }
@@ -102,7 +107,11 @@ struct CountdownView: View {
     }
 
     @ViewBuilder private func countdown(now: Date) -> some View {
-        if event?.state == .announcedComplete {
+        if event == nil && model.aiReview.needsAttention {
+            Text(locale == .zhHans ? "待核对" : "Review needed")
+                .font(.system(size: 42, weight: .bold, design: .rounded)).foregroundStyle(.orange)
+                .lineLimit(1).minimumScaleFactor(0.7).padding(.vertical, 10)
+        } else if event?.state == .announcedComplete {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 42))
                 Text(locale == .zhHans ? "已重置" : "Reset done").font(.system(size: 43, weight: .bold, design: .rounded))
@@ -125,7 +134,9 @@ struct CountdownView: View {
 
     private var targetLine: some View {
         Group {
-            if event?.state == .announcedComplete, let published = event?.completedAt {
+            if event == nil && model.aiReview.needsAttention {
+                Text(model.aiReview.attentionTiming(locale))
+            } else if event?.state == .announcedComplete, let published = event?.completedAt {
                 Text("\(locale == .zhHans ? "公告发布" : "Announced") · \(Self.format(published, zoneID: model.preferences.displayTimeZone, locale: locale)) · \(timeZoneLabel(for: published))")
             } else if let target = event?.countdownAt {
                 let prefix = event?.kind == .bankedResetGrant
@@ -365,7 +376,7 @@ struct CountdownView: View {
     }
 
     private var accent: Color {
-        guard let event else { return Color(red: 0.43, green: 0.47, blue: 0.53) }
+        guard let event else { return model.aiReview.needsAttention ? .orange : Color(red: 0.43, green: 0.47, blue: 0.53) }
         if event.state == .announcedComplete { return .teal }
         if event.kind == .bankedResetGrant { return Color(red: 0.12, green: 0.68, blue: 0.45) }
         if event.targetAt.map({ $0 <= Date() }) == true { return Color(red: 0.78, green: 0.58, blue: 0.18) }
@@ -375,6 +386,7 @@ struct CountdownView: View {
     }
 
     private var statusIcon: String {
+        if event == nil && model.aiReview.needsAttention { return "exclamationmark.bubble.fill" }
         if event?.state == .announcedComplete { return "checkmark.seal.fill" }
         if event?.kind == .bankedResetGrant { return "sparkles" }
         if event?.kind == .lead { return "questionmark.bubble.fill" }
@@ -383,7 +395,9 @@ struct CountdownView: View {
     }
 
     private var statusTitle: String {
-        guard let event else { return Copy.text(.noAnnouncement, locale) }
+        guard let event else {
+            return model.aiReview.needsAttention ? model.aiReview.attentionTitle(locale) : Copy.text(.noAnnouncement, locale)
+        }
         if event.state == .announcedComplete { return locale == .zhHans ? "重置已完成 · 请核对账号" : "Reset completed · Check your account" }
         if event.kind == .bankedResetGrant {
             if event.audience == "affected-reset-users" { return locale == .zhHans ? "手动重置补偿 · 请核对资格" : "Reset compensation · Check eligibility" }

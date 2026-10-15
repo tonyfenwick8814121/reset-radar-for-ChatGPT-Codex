@@ -22,7 +22,19 @@ struct MiniView: View {
                     Button(action: onHide) { Image(systemName: "xmark") }.buttonStyle(.plain)
                         .accessibilityLabel(model.preferences.locale == .zhHans ? "隐藏" : "Hide")
                 }.foregroundStyle(.secondary)
-                Text(statusText).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(accent).lineLimit(1)
+                HStack(spacing: 5) {
+                    if model.aiReview.needsAttention && model.activeEvent == nil {
+                        Button { model.onOpenAIReview?() } label: {
+                            Label(model.aiReview.attentionTitle(model.preferences.locale), systemImage: "exclamationmark.bubble.fill")
+                        }.buttonStyle(.plain).foregroundStyle(.orange)
+                    } else {
+                        Text(statusText).foregroundStyle(accent)
+                        if model.aiReview.needsAttention {
+                            Button(model.preferences.locale == .zhHans ? "AI 待核对 ↗" : "AI review ↗") { model.onOpenAIReview?() }
+                                .buttonStyle(.plain).foregroundStyle(.orange)
+                        }
+                    }
+                }.font(.system(size: 9, weight: .bold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.8)
                 Text(countdown(now: context.date))
                     .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
                     .minimumScaleFactor(0.7).lineLimit(1)
@@ -53,6 +65,7 @@ struct MiniView: View {
 
     private func countdown(now: Date) -> String {
         if model.activeEvent?.state == .announcedComplete { return model.preferences.locale == .zhHans ? "✓ 已重置" : "✓ Reset done" }
+        if model.activeEvent == nil && model.aiReview.needsAttention { return model.preferences.locale == .zhHans ? "待核对" : "Review needed" }
         guard let target = model.activeEvent?.countdownAt else { return "––:––:––" }
         return CountdownView.remaining(target.timeIntervalSince(now))
     }
@@ -62,6 +75,7 @@ struct MiniView: View {
             return "\(model.preferences.locale == .zhHans ? "公告发布" : "Announced") · \(CountdownView.format(published, zoneID: model.preferences.displayTimeZone, locale: model.preferences.locale))"
         }
         guard let target = model.activeEvent?.countdownAt else {
+            if model.activeEvent == nil && model.aiReview.needsAttention { return model.aiReview.attentionTiming(model.preferences.locale) }
             if model.activeEvent?.kind == .bankedResetGrant {
                 return model.preferences.locale == .zhHans ? "请在账号内核对" : "Check your account"
             }
@@ -93,6 +107,7 @@ struct MiniView: View {
     }
 
     private var accent: Color {
+        if model.aiReview.needsAttention && model.activeEvent == nil { return .orange }
         if model.activeEvent?.state == .announcedComplete { return .teal }
         if model.activeEvent?.kind == .bankedResetGrant { return .green }
         if let date = model.activeEvent?.targetAt, date.timeIntervalSinceNow < 300 { return .red }

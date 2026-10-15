@@ -8,6 +8,7 @@ final class AIReviewCoordinator: ObservableObject {
     @Published private(set) var isAnalyzing = false
     @Published private(set) var hasKey = false
     @Published private(set) var message: AIReviewFailure?
+    @Published private(set) var authorizationSucceeded = false
     var onReviewNotice: (() -> Void)?
 
     private let store: LocalStore
@@ -43,6 +44,7 @@ final class AIReviewCoordinator: ObservableObject {
     func authorize(key: String, consent: Bool) async -> Bool {
         guard consent else { message = .consentRequired; return false }
         guard !isConfiguring else { return false }
+        authorizationSucceeded = false
         var key = key.trimmingCharacters(in: .whitespacesAndNewlines)
         if key.isEmpty {
             do { key = try keys.read() ?? "" }
@@ -62,16 +64,18 @@ final class AIReviewCoordinator: ObservableObject {
                 state.records[index].status = .pending; state.records[index].retryAt = nil; state.records[index].attempts = 0
             }
             guard await persist() else { state.enabled = false; return false }
+            authorizationSucceeded = true
             kick()
             return true
-        } catch let error as AIReviewFailure { message = error }
+        } catch let error as AIReviewError { message = error.failure }
+        catch let error as AIReviewFailure { message = error }
         catch is AIRateLimit { message = .rateLimited }
         catch { message = .network }
         return false
     }
 
     func disable() async {
-        stop(); state.enabled = false; message = nil
+        stop(); state.enabled = false; message = nil; authorizationSucceeded = false
         _ = await persist()
     }
 
@@ -125,7 +129,7 @@ final class AIReviewCoordinator: ObservableObject {
 
     // Explicit retry clears transient per-post errors, but never bypasses server cooldown or daily budget.
     func retryFailures() async {
-        guard state.enabled, !state.authorizationRequired, !isAnalyzing else { return }
+        guard canRetryFailures else { return }
         for index in state.records.indices where state.records[index].status == .failed && state.records[index].attempts < 2 {
             state.records[index].retryAt = nil
         }
@@ -147,11 +151,46 @@ final class AIReviewCoordinator: ObservableObject {
         }
     }
 
-    var needsAttention: Bool {
-        state.enabled && recentRecords.contains { record in
-            record.status == .success && record.comparison != .agreement && !record.acknowledged &&
-            state.posts.first(where: { $0.id == record.postID }).map({ $0.publishedAt >= Date().addingTimeInterval(-86_400) }) == true
+    var attentionRecord: AIReviewRecord? {
+        guard state.enabled else { return nil }
+        return freshRecords.first { record in
+            record.status == .success && [.possibleMiss, .disagreement].contains(record.comparison) && !record.acknowledged
         }
+    }
+
+    var needsAttention: Bool { attentionRecord != nil }
+
+    func attentionTitle(_ locale: AppLocale) -> String {
+        if attentionRecord?.comparison == .possibleMiss {
+            return locale == .zhHans ? "AI 发现重置线索 · 待核对" : "AI reset finding · Needs review"
+        }
+        return locale == .zhHans ? "AI / 规则有分歧 · 待核对" : "AI / rules disagree · Needs review"
+    }
+
+    func attentionTiming(_ locale: AppLocale) -> String {
+        if let time = attentionRecord?.analysis?.claims.first(where: { $0.actionable && $0.timeText != nil })?.timeText {
+            return (locale == .zhHans ? "原文时间：" : "Original timing: ") + time
+        }
+        return locale == .zhHans ? "规则未确认 · 点击查看原文依据" : "Unconfirmed by rules · Open evidence"
+    }
+
+    var canRetryFailures: Bool {
+        state.enabled && !state.authorizationRequired && !isAnalyzing &&
+        (state.cooldownUntil.map { $0 <= Date() } ?? true) &&
+        state.requests.filter { $0 > Date().addingTimeInterval(-86_400) }.count < Self.dailyRequestLimit &&
+        freshRecords.contains { $0.status == .failed && $0.attempts < 2 }
+    }
+
+    func retryExplanation(_ locale: AppLocale) -> String? {
+        let zh = locale == .zhHans
+        guard state.enabled else { return nil }
+        if state.authorizationRequired { return zh ? "请先重新授权 Key。" : "Authorize your key again first." }
+        if let until = state.cooldownUntil, until > Date() { return zh ? "免费服务冷却中，稍后重试。" : "The free service is cooling down; retry later." }
+        if state.requests.filter({ $0 > Date().addingTimeInterval(-86_400) }).count >= Self.dailyRequestLimit { return zh ? "近24小时的20次请求已用完，稍后自动继续。" : "All 20 requests for the last 24 hours were used; resumes later." }
+        if freshRecords.contains(where: { $0.status == .failed }) && !freshRecords.contains(where: { $0.status == .failed && $0.attempts < 2 }) {
+            return zh ? "近期失败项已各尝试2次；后续新帖仍会自动分析。" : "Recent failed posts have each used both attempts; new posts will still be reviewed."
+        }
+        return nil
     }
 
     private var freshRecords: [AIReviewRecord] {
@@ -165,10 +204,10 @@ final class AIReviewCoordinator: ObservableObject {
         if !state.enabled { return zh ? "未启用" : "Off" }
         if let message { return message.message(locale) }
         if state.authorizationRequired { return AIReviewFailure.unauthorized.message(locale) }
+        if needsAttention { return zh ? "有分歧 · 待核对" : "Disagreement · Needs review" }
         if isAnalyzing { return zh ? "正在独立分析" : "Analyzing independently" }
         if let until = state.cooldownUntil, until > Date() { return zh ? "免费服务冷却中" : "Free service cooling down" }
         if state.requests.filter({ $0 > Date().addingTimeInterval(-86_400) }).count >= Self.dailyRequestLimit { return zh ? "近 24 小时请求上限已到，稍后继续" : "24-hour request cap reached; waiting" }
-        if needsAttention { return zh ? "有分歧 · 待核对" : "Disagreement · Needs review" }
         if freshRecords.contains(where: { $0.status == .failed }) { return zh ? "部分 AI 分析失败" : "Some AI reviews failed" }
         if freshRecords.contains(where: { $0.status == .pending }) { return zh ? "等待分析" : "Queued" }
         if freshRecords.contains(where: { $0.comparison != nil && $0.comparison != .agreement }) { return zh ? "复核完成 · 分歧已读" : "Reviewed · Disagreement acknowledged" }
@@ -223,6 +262,7 @@ final class AIReviewCoordinator: ObservableObject {
                 state.records[current].status = .success; state.records[current].checkedAt = Date()
                 state.records[current].analysis = analysis; state.records[current].model = model
                 state.records[current].comparison = comparison; state.records[current].failure = nil
+                state.records[current].diagnostic = nil
                 message = nil
                 let notify = comparison != .agreement && analysis.claims.contains(where: \.actionable) &&
                     !state.records[current].acknowledged && state.records[current].notifiedAt == nil &&
@@ -234,8 +274,9 @@ final class AIReviewCoordinator: ObservableObject {
             } catch {
                 guard token == generation, !Task.isCancelled,
                       let current = state.records.firstIndex(where: { $0.id == input.fingerprint }) else { return }
-                let failure = (error as? AIReviewFailure) ?? (error is AIRateLimit ? .rateLimited : .network)
+                let failure = (error as? AIReviewError)?.failure ?? (error as? AIReviewFailure) ?? (error is AIRateLimit ? .rateLimited : .network)
                 state.records[current].status = .failed; state.records[current].checkedAt = Date(); state.records[current].failure = failure
+                state.records[current].diagnostic = (error as? AIReviewError)?.diagnostic
                 state.records[current].retryAt = Date().addingTimeInterval(600)
                 if failure == .unauthorized { state.authorizationRequired = true; message = failure }
                 if let limit = error as? AIRateLimit { state.cooldownUntil = Date().addingTimeInterval(limit.delay); state.records[current].retryAt = state.cooldownUntil }

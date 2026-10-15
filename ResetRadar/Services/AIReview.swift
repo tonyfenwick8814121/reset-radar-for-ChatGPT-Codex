@@ -65,6 +65,7 @@ struct AIReviewRecord: Codable, Identifiable, Sendable {
     var checkedAt: Date?
     var retryAt: Date?
     var failure: AIReviewFailure?
+    var diagnostic: AIReviewDiagnostic?
     var model: String?
     var analysis: AIAnalysis?
     var comparison: AIComparison?
@@ -84,6 +85,7 @@ struct AIReviewState: Codable, Sendable {
 
 enum AIReviewFailure: String, Codable, Error, Sendable {
     case unauthorized, rateLimited, network, invalidResponse, keychain, storage, consentRequired
+    case timedOut, serviceUnavailable, requestRejected, quotaUnavailable, truncatedResponse, emptyResponse, malformedResponse, evidenceMismatch, refusedResponse
 
     func message(_ locale: AppLocale) -> String {
         let zh = locale == .zhHans
@@ -91,12 +93,34 @@ enum AIReviewFailure: String, Codable, Error, Sendable {
         case .unauthorized: return zh ? "Key 无效或已撤销，请重新授权" : "Key invalid or revoked; authorize again"
         case .rateLimited: return zh ? "免费服务限流，冷却后重试" : "Free service rate limited; waiting to retry"
         case .network: return zh ? "AI 连接失败，原有监测继续运行" : "AI connection failed; rule monitoring continues"
-        case .invalidResponse: return zh ? "AI 回答未通过原文或格式校验" : "AI response failed evidence or format validation"
+        case .invalidResponse: return zh ? "旧版校验失败记录，未保存具体原因；不代表 Key 配置失败" : "Legacy validation failure; the specific reason was not recorded. This does not mean key setup failed."
+        case .timedOut: return zh ? "AI 响应超时，未取得结论；新帖监测继续" : "AI response timed out; no conclusion received. New-post monitoring continues."
+        case .serviceUnavailable: return zh ? "免费模型服务暂不可用，未取得结论" : "The free model service is temporarily unavailable; no conclusion received."
+        case .requestRejected: return zh ? "免费模型拒绝了请求参数，未取得结论" : "The free model rejected the request parameters; no conclusion received."
+        case .quotaUnavailable: return zh ? "OpenRouter 当前额度不可用，不会改用付费模型" : "OpenRouter quota is currently unavailable; no paid model will be used."
+        case .truncatedResponse: return zh ? "模型回答达到长度上限，结论未完整生成" : "The model reached its output limit before completing the result."
+        case .emptyResponse: return zh ? "模型返回了空回答，未取得结论" : "The model returned an empty answer; no conclusion received."
+        case .malformedResponse: return zh ? "模型回答格式不完整或不符合要求，未采用该结论" : "The model response was incomplete or malformed; its conclusion was not used."
+        case .evidenceMismatch: return zh ? "模型结论或引用未通过原文校验，未采用该结论" : "The model's claim or quotation failed evidence validation; its conclusion was not used."
+        case .refusedResponse: return zh ? "模型未能回答这条帖子，未取得结论" : "The model declined this post; no conclusion received."
         case .keychain: return zh ? "无法访问钥匙串中的 Key" : "Could not access the Keychain key"
         case .storage: return zh ? "AI 记录保存失败" : "Could not save AI review records"
         case .consentRequired: return zh ? "请先勾选授权说明" : "Accept the authorization notice first"
         }
     }
+}
+
+// Only bounded status metadata is retained. Never persist server error text, keys or reasoning.
+struct AIReviewDiagnostic: Codable, Sendable {
+    var httpStatus: Int?
+    var finishReason: String?
+    var completionTokens: Int?
+    var reasoningTokens: Int?
+}
+
+struct AIReviewError: Error {
+    let failure: AIReviewFailure
+    let diagnostic: AIReviewDiagnostic
 }
 
 struct AIRateLimit: Error { let delay: TimeInterval }
@@ -157,7 +181,7 @@ struct OpenRouterReviewClient: AIReviewServing {
     func validateKey(_ key: String) async throws {
         let data = try await send(path: "key", key: key, body: nil)
         struct KeyResponse: Decodable { let data: Metadata; struct Metadata: Decodable { let label: String } }
-        guard (try? JSONDecoder().decode(KeyResponse.self, from: data)) != nil else { throw AIReviewFailure.invalidResponse }
+        guard (try? JSONDecoder().decode(KeyResponse.self, from: data)) != nil else { throw AIReviewFailure.malformedResponse }
     }
 
     func analyze(_ input: AIReviewInput, key: String) async throws -> (AIAnalysis, String) {
@@ -181,7 +205,8 @@ struct OpenRouterReviewClient: AIReviewServing {
             "reply_parent_missing": input.post.replyParentID != nil && input.parent == nil]
         if let parent = input.parent { original["reply_parent"] = ["post_id": parent.id, "text": parent.text] }
         let content = String(data: try JSONSerialization.data(withJSONObject: original, options: [.sortedKeys]), encoding: .utf8)!
-        return try JSONSerialization.data(withJSONObject: ["model": model, "max_tokens": 1200, "temperature": 0,
+        return try JSONSerialization.data(withJSONObject: ["model": model, "max_tokens": 4096, "temperature": 0,
+            "reasoning": ["effort": "low", "exclude": true],
             "provider": ["require_parameters": true],
             "response_format": ["type": "json_schema", "json_schema": ["name": "reset_review", "strict": true, "schema": schema]],
             "messages": [["role": "system", "content": prompt], ["role": "user", "content": content]]])
@@ -195,23 +220,40 @@ struct OpenRouterReviewClient: AIReviewServing {
 
     static func decode(_ data: Data, input: AIReviewInput) throws -> (AIAnalysis, String) {
         struct Response: Decodable {
-            let model: String
+            let model: String?
             let choices: [Choice]
-            struct Choice: Decodable { let message: Message; let finish_reason: String? }
-            struct Message: Decodable { let content: String }
+            let usage: Usage?
+            struct Choice: Decodable { let message: Message?; let finish_reason: String? }
+            struct Message: Decodable { let content: String?; let refusal: String? }
+            struct Usage: Decodable {
+                let completion_tokens: Int?
+                let completion_tokens_details: Details?
+                struct Details: Decodable { let reasoning_tokens: Int? }
+            }
         }
+        var diagnostic = AIReviewDiagnostic(httpStatus: 200)
+        func failure(_ reason: AIReviewFailure) -> AIReviewError { AIReviewError(failure: reason, diagnostic: diagnostic) }
         guard data.count <= 200_000, let response = try? JSONDecoder().decode(Response.self, from: data),
-              let choice = response.choices.first, choice.finish_reason == "stop",
-              let analysis = try? JSONDecoder().decode(AIAnalysis.self, from: Data(choice.message.content.utf8)),
-              analysis.claims.count <= 6, !response.model.isEmpty, response.model.count <= 150 else { throw AIReviewFailure.invalidResponse }
+              let choice = response.choices.first else { throw failure(.malformedResponse) }
+        if let finish = choice.finish_reason, ["stop", "length", "error", "content_filter", "tool_calls"].contains(finish) { diagnostic.finishReason = finish }
+        diagnostic.completionTokens = response.usage?.completion_tokens.map { min(max(0, $0), 1_000_000) }
+        diagnostic.reasoningTokens = response.usage?.completion_tokens_details?.reasoning_tokens.map { min(max(0, $0), 1_000_000) }
+        if choice.finish_reason == "length" { throw failure(.truncatedResponse) }
+        if choice.finish_reason == "error" { throw failure(.serviceUnavailable) }
+        if choice.finish_reason == "content_filter" || choice.message?.refusal?.isEmpty == false { throw failure(.refusedResponse) }
+        guard choice.finish_reason == "stop" else { throw failure(.malformedResponse) }
+        guard let content = choice.message?.content, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw failure(.emptyResponse) }
+        guard let model = response.model, !model.isEmpty, model.count <= 150,
+              let analysis = try? JSONDecoder().decode(AIAnalysis.self, from: Data(content.utf8)),
+              analysis.claims.count <= 6 else { throw failure(.malformedResponse) }
         for claim in analysis.claims {
             guard !claim.quote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   input.post.text.contains(claim.quote), claim.noteZH.count <= 240, claim.noteEN.count <= 240,
                   !claim.noteZH.isEmpty, !claim.noteEN.isEmpty,
                   claim.timeText.map({ !$0.isEmpty && input.post.text.contains($0) }) ?? true,
-                  !(claim.explicit && (claim.type == .unknown || claim.phase == .uncertain)) else { throw AIReviewFailure.invalidResponse }
+                  !(claim.explicit && (claim.type == .unknown || claim.phase == .uncertain)) else { throw failure(.evidenceMismatch) }
         }
-        return (analysis, response.model)
+        return (analysis, model)
     }
 
     private func send(path: String, key: String, body: Data?) async throws -> Data {
@@ -222,7 +264,7 @@ struct OpenRouterReviewClient: AIReviewServing {
         request.httpBody = body
         let data: Data; let response: URLResponse
         do { (data, response) = try await session.data(for: request) }
-        catch { if Task.isCancelled { throw CancellationError() }; throw AIReviewFailure.network }
+        catch { if Task.isCancelled { throw CancellationError() }; throw (error as? URLError)?.code == .timedOut ? AIReviewFailure.timedOut : AIReviewFailure.network }
         guard let http = response as? HTTPURLResponse else { throw AIReviewFailure.invalidResponse }
         if http.statusCode == 401 || http.statusCode == 403 { throw AIReviewFailure.unauthorized }
         if http.statusCode == 429 {
@@ -232,7 +274,11 @@ struct OpenRouterReviewClient: AIReviewServing {
             let delay = retry.flatMap(TimeInterval.init) ?? retry.flatMap { formatter.date(from: $0)?.timeIntervalSinceNow } ?? 3600
             throw AIRateLimit(delay: max(60, delay))
         }
-        guard (200..<300).contains(http.statusCode), data.count <= 200_000 else { throw AIReviewFailure.invalidResponse }
+        let diagnostic = AIReviewDiagnostic(httpStatus: http.statusCode)
+        if (500..<600).contains(http.statusCode) { throw AIReviewError(failure: .serviceUnavailable, diagnostic: diagnostic) }
+        if http.statusCode == 402 { throw AIReviewError(failure: .quotaUnavailable, diagnostic: diagnostic) }
+        if http.statusCode == 400 || http.statusCode == 422 { throw AIReviewError(failure: .requestRejected, diagnostic: diagnostic) }
+        guard (200..<300).contains(http.statusCode), data.count <= 200_000 else { throw AIReviewError(failure: .malformedResponse, diagnostic: diagnostic) }
         return data
     }
 }

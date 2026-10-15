@@ -1,5 +1,19 @@
 # 版本记录 · Changelog
 
+## 0.4.2 — 2026-10-15
+
+- 补充 macOS 标准编辑菜单，修复密码输入框 ⌘V、⌘A 等快捷键无法生效。
+- 授权成功后持续显示绿色确认；Key 已保存/已启用与单次分析失败分别展示。
+- 主窗口、迷你窗及菜单栏同步显示 AI 待核对发现；点击可查看依据，确认阅读、停用或24小时过期后取消提示。规则倒计时与已确认结果继续显示，不将 AI 候选升级为已确认事件。
+- 区分超时、服务不可用、请求被拒、额度不可用、回答截断、空回答、格式及原文校验失败；仅保存状态码、结束原因和用量数字，不保存 Key、服务器错误原文或模型思考内容。
+- 免费请求输出上限调整为4096，并请求较低思考强度，降低截断风险。仍只使用 openrouter/free，每24小时20次、每条版本最多2次，不重新分析缓存成功项或重置旧失败次数。
+- 禁用重试时解释冷却或次数限制，过期的未分析记录不再显示成正在排队。
+
+- Restored standard macOS editing shortcuts and added persistent authorization confirmation.
+- AI review findings now appear across the main/mini windows and menu bar without replacing confirmed rule events or creating AI-only countdowns.
+- Distinct, sanitized failure reasons and bounded diagnostic metadata; a 4096-token output cap with low reasoning effort reduces truncation risk. Free-only routing, caching, the 20-per-24-hour cap and two-attempt limit remain.
+- Explains disabled retries and marks unreviewed posts older than 24 hours as outside the review window.
+
 ## 0.4.1 — 2026-10-13
 
 - 新增明确太平洋时区的 EOD / end of day 截止倒计时，以原帖当地日期的次日午夜作为估算上限，明确标注“预计最迟 / 可能提前”。
