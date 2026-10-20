@@ -15,7 +15,7 @@
 
 ### 下载与环境
 
-**[下载 v0.4.2 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.2/Reset-Radar-0.4.2-arm64.zip)**
+**[下载 v0.4.3 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.3/Reset-Radar-0.4.3-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -23,11 +23,11 @@
 
 ### 版本更新
 
-**v0.4.2 · 2026-10-15**
+**v0.4.3 · 2026-10-20**
 
-- 修复 Key 输入框的 ⌘V / ⌘A 等快捷键，授权成功后显示明确的绿色确认。
-- AI 待核对发现同步显示在主窗口、迷你窗及菜单栏，可点击查看依据。
-- 细分分析失败原因，降低回答截断风险，并解释重试限制；免费调用与次数上限保持。
+- 修复连续活动中简短重置公告的漏报，结合作者有效期内的活动原文和直接回复理解上下文。
+- 重置相关信息不足时显示“待核对”，避免把双方都未判断出来显示成“结论一致”。
+- 升级补发近期漏掉的完成通知一次；缓存、已处理记录和免费请求上限保留。
 
 可选 AI 交叉验证默认关闭，配置方式见[说明](docs/AI_REVIEW.md)。
 
@@ -46,7 +46,7 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Download & requirements
 
-**[Download v0.4.2 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.2/Reset-Radar-0.4.2-arm64.zip)**
+**[Download v0.4.3 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.3/Reset-Radar-0.4.3-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
@@ -54,11 +54,11 @@ This preview is not Developer ID signed or notarized; macOS may block the first 
 
 ### Updates
 
-**v0.4.2 · 2026-10-15**
+**v0.4.3 · 2026-10-20**
 
-- Fixed standard key-field shortcuts, with clear green confirmation after authorization.
-- AI findings appear in the main window, mini window and menu bar, with direct access to evidence.
-- Clearer failure reasons, lower truncation risk and visible retry limits; free-only routing and request caps are preserved.
+- Fixed missed concise campaign reset announcements using the author's active public pledge and direct replies as context.
+- Incomplete reset-related context now needs review, instead of being shown as agreement when neither check reached a conclusion.
+- Backfills one recent missed completion notice on upgrade, preserving caches, handled records and free request limits.
 
 Optional AI cross-check is off by default. [Setup guide](docs/AI_REVIEW.md)
 

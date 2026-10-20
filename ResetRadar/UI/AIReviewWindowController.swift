@@ -61,7 +61,7 @@ private struct AIReviewView: View {
                         .background(reviewer.state.enabled ? Color.green.opacity(0.14) : Color.gray.opacity(0.14), in: Capsule())
                 }
                 Text(reviewer.summary(locale)).font(.callout).foregroundStyle(reviewer.needsAttention || reviewer.message != nil ? .orange : .secondary)
-                Text(zh ? "现有规则继续独立运行。AI 复核每篇新帖，发现疑似漏报或分歧时提供原文依据，结果需核对，不代表你的账户已重置。" : "Rules keep running independently. AI reviews each new post and surfaces possible misses or disagreements with original evidence. Review results do not confirm a reset in your account.")
+                Text(zh ? "现有规则继续独立运行。AI 参考原帖、直接回复及作者有效期内的活动原文；疑似漏报、分歧或重置相关信息不足时提醒核对，不代表你的账户已重置。" : "Rules keep running independently. AI uses original posts, direct replies and the author's active campaign pledge. Possible misses, disagreements and incomplete reset context need review; they do not confirm an account reset.")
                     .font(.callout).foregroundStyle(.secondary)
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
@@ -70,12 +70,12 @@ private struct AIReviewView: View {
                             Spacer()
                             Link(zh ? "创建免费 Key ↗" : "Create free key ↗", destination: URL(string: "https://openrouter.ai/settings/keys")!)
                         }
-                        Text(zh ? "只使用 openrouter/free，无付费模型回退。每天最多 20 次分析；未变化的帖子不重复请求。免费服务可能限流或不可用。" : "Uses only openrouter/free, with no paid fallback. Up to 20 analyses per rolling 24 hours; unchanged posts are cached. Free service may be rate limited or unavailable.")
+                        Text(zh ? "仅在两个指定免费模型间切换，关闭额外思考，输入与输出价格上限均为0。每天最多20次分析；不回退付费模型。免费服务可能限流或不可用。" : "Uses only two specified free models with extra reasoning disabled and zero input/output price caps. Up to 20 analyses per rolling 24 hours, with no paid fallback. Free service may be rate limited or unavailable.")
                             .font(.caption).foregroundStyle(.secondary)
                         SecureField(zh ? "粘贴 Key（留空可使用已保存的 Key）" : "Paste key (leave blank to reuse saved key)", text: $key)
                             .textFieldStyle(.roundedBorder).disabled(reviewer.isConfiguring)
                             .accessibilityLabel("OpenRouter Key")
-                        Toggle(zh ? "授权将公开原帖及可获取的直接回复上文发送给 OpenRouter 和模型服务商，并在本机钥匙串保存 Key。" : "Allow public posts and available direct reply context to be sent to OpenRouter and its model providers, and store the key in this Mac’s Keychain.", isOn: $consent)
+                        Toggle(zh ? "授权将公开原帖、可获取的直接回复及相关活动原文发送给 OpenRouter 和模型服务商，并在本机钥匙串保存 Key。" : "Allow public posts, available direct replies and relevant campaign posts to be sent to OpenRouter and its model providers, and store the key in this Mac’s Keychain.", isOn: $consent)
                             .font(.caption).disabled(reviewer.isConfiguring)
                         HStack {
                             Button(reviewer.isConfiguring ? (zh ? "验证中…" : "Validating…") : (zh ? "授权并启用" : "Authorize & enable")) {
@@ -137,13 +137,16 @@ private struct AIReviewView: View {
                     Text(CountdownView.format(date, zoneID: timeZoneID, locale: locale)).font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            if let failure = record.failure { Text(failure.message(locale)).font(.caption).foregroundStyle(.red) }
+            if let failure = record.displayedFailure { Text(failure.message(locale)).font(.caption).foregroundStyle(.red) }
             if let code = record.diagnostic?.httpStatus, code != 200 {
                 Text((zh ? "服务状态：" : "Service status: ") + String(code)).font(.caption2).foregroundStyle(.secondary)
             }
             if let post {
                 Text(post.text).font(.callout).textSelection(.enabled)
                 Link(zh ? "查看原帖 ↗" : "Original post ↗", destination: post.url).font(.caption)
+                if let campaign = reviewer.campaignContext(for: post.id) {
+                    Link(zh ? "相关活动原文 ↗" : "Campaign pledge ↗", destination: campaign.announcement.url).font(.caption)
+                }
             }
             if let analysis = record.analysis {
                 ForEach(Array(analysis.claims.enumerated()), id: \.offset) { _, claim in
@@ -152,7 +155,9 @@ private struct AIReviewView: View {
                     if let time = claim.timeText { Text((zh ? "原文时间（未据此生成倒计时）：" : "Original timing (no AI countdown): ") + time).font(.caption2).foregroundStyle(.secondary) }
                 }
                 if analysis.contextMissing { Text(zh ? "缺少上下文，判断需谨慎" : "Missing context; interpretation needs review").font(.caption).foregroundStyle(.orange) }
-                if analysis.claims.isEmpty { Text(zh ? "AI 未发现重置公告" : "AI found no reset announcement").font(.caption).foregroundStyle(.secondary) }
+                if analysis.claims.isEmpty { Text(record.comparison == .inconclusive
+                    ? (zh ? "AI 未给出可靠结论，请核对原文" : "AI gave no reliable conclusion; review the source")
+                    : (zh ? "AI 未发现重置公告" : "AI found no reset announcement")).font(.caption).foregroundStyle(.secondary) }
             }
             if let model = record.model { Text("OpenRouter · " + model).font(.caption2).foregroundStyle(.tertiary) }
             if record.status == .success && record.comparison != .agreement && !record.acknowledged {
@@ -174,6 +179,7 @@ private struct AIReviewView: View {
             switch record.comparison {
             case .agreement: return zh ? "规则 / AI 结论一致" : "Rules / AI agree"
             case .possibleMiss: return zh ? "AI 复核发现 · 待核对" : "AI finding · Needs review"
+            case .inconclusive: return zh ? "信息不足 · 待核对" : "Insufficient context · Needs review"
             default: return zh ? "规则 / AI 有分歧 · 待核对" : "Rules / AI disagree · Needs review"
             }
         }

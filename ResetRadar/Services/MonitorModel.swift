@@ -131,10 +131,10 @@ final class MonitorModel: ObservableObject {
             let loadedEvents = await savedEvents
             let loadedStatuses = await savedStatuses
             let loadedPreferences = await savedPreferences
-            events = reclassifySavedEvents(loadedEvents.value)
             statuses = loadedStatuses.value
             preferences = loadedPreferences.value
             await aiReview.load()
+            events = reclassifySavedEvents(loadedEvents.value)
             storageMessage = [loadedEvents.issue, loadedStatuses.issue, loadedPreferences.issue].compactMap { $0 }.joined(separator: " · ")
             if storageMessage?.isEmpty == true { storageMessage = nil }
             preferences.launchAtLogin = LaunchAtLoginService.isEnabled
@@ -189,7 +189,8 @@ final class MonitorModel: ObservableObject {
                 guard !batch.notModified else { continue }
                 if source.id == "codex-reset-json" { await aiReview.ingest(batch.items, now: batch.fetchedAt) }
                 for item in batch.items.sorted(by: { ($0.freshnessDate ?? .distantPast) < ($1.freshnessDate ?? .distantPast) }) {
-                    for var candidate in classifier.classifyAll(item, source: source, fetchedAt: batch.fetchedAt).reversed() {
+                    let campaign = aiReview.campaignContext(for: item.url?.lastPathComponent ?? item.id)
+                    for var candidate in classifier.classifyAll(item, source: source, fetchedAt: batch.fetchedAt, campaign: campaign).reversed() {
                         if candidate.confirmedAnnouncement && (candidate.state == .announcedComplete || candidate.state == .cancelled) {
                             if let relatedID = terminalAnnouncementID(candidate, among: events) {
                                 candidate.relatedPostIDs = [candidate.id]
@@ -551,7 +552,8 @@ final class MonitorModel: ObservableObject {
             let candidates = old.evidence.compactMap { evidence -> ResetEvent? in
                 guard let source = FeedSource.defaults.first(where: { $0.id == evidence.sourceID }) else { return nil }
                 return classifier.classify(FeedItem(id: evidence.itemID, title: "", body: evidence.excerpt,
-                    url: evidence.url, publishedAt: evidence.publishedAt), source: source, fetchedAt: old.firstSeenAt)
+                    url: evidence.url, publishedAt: evidence.publishedAt), source: source, fetchedAt: old.firstSeenAt,
+                    campaign: aiReview.campaignContext(for: evidence.url?.lastPathComponent ?? evidence.itemID))
             }.sorted {
                 if $0.evidenceRank != $1.evidenceRank { return ($0.evidenceRank ?? 0) > ($1.evidenceRank ?? 0) }
                 return old.state == .announcedComplete && $0.state == .announcedComplete && $1.state != .announcedComplete

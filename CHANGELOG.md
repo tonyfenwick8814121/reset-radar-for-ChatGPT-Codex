@@ -1,5 +1,17 @@
 # 版本记录 · Changelog
 
+## 0.4.3 — 2026-10-20
+
+- 修复“Day 15/ … and reset. Enjoy.”等连续活动完成公告漏报：引用同一作者有效期内的活动承诺，仅在本条有肯定交付表达时判为完成，不把每天的活动承诺当作每天已重置。
+- 直接回复当天重置标记的时间预告可获得话题背景；继续区分预告和完成，保留日期及时区校验。
+- AI 请求加入可追溯的活动原文；缺上下文或可信重置相关帖双方都没判断出来时显示“信息不足 · 待核对”，不再笼统视为一致。普通闲聊、愿望、密码重置等不因缺上下文而触发复核提醒。
+- 升级按缓存原文补发24小时内漏掉的完成通知一次，保留首次发现时间、已读/已处理及通知记录；旧无关成功缓存不重新请求，旧历史可读。
+- 活动背景按原文有效期约束并保留在有界缓存中；读取凭据移至实际分析时的后台操作，规则监测与启动不再等待钥匙串授权。仅在两个指定的免费模型间切换，明确关闭思考并将输入/输出价格上限设为0；404归类为服务不可用，每滚动24小时最多20次分析，不回退付费模型。
+
+- Fixed concise campaign completion misses using the same author's active public pledge as topic context, while requiring an affirmative delivery in the current post.
+- Supports reset-topic timing in direct replies and separates incomplete context from agreement. Unrelated chatter does not trigger uncertainty notices.
+- Backfills one recent missed completion on upgrade; preserves handled states and history, reuses unrelated successful caches, and keeps Keychain waits off rule startup and the UI thread.
+
 ## 0.4.2 — 2026-10-15
 
 - 补充 macOS 标准编辑菜单，修复密码输入框 ⌘V、⌘A 等快捷键无法生效。

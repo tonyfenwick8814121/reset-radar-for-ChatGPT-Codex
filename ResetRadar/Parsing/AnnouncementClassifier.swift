@@ -4,25 +4,27 @@ import Foundation
 /// Local, deterministic claims: each sentence has its own action, polarity and time.
 /// A missing date never prevents a credible explicit announcement from being surfaced.
 struct AnnouncementClassifier {
-    static let version = 8
+    static let version = 9
     private let resolver = TimeResolver()
 
-    func classify(_ item: FeedItem, source: FeedSource, fetchedAt: Date) -> ResetEvent? {
-        classifyAll(item, source: source, fetchedAt: fetchedAt).first
+    func classify(_ item: FeedItem, source: FeedSource, fetchedAt: Date, campaign: ResetCampaignContext? = nil) -> ResetEvent? {
+        classifyAll(item, source: source, fetchedAt: fetchedAt, campaign: campaign).first
     }
 
-    func classifyAll(_ item: FeedItem, source: FeedSource, fetchedAt: Date) -> [ResetEvent] {
+    func classifyAll(_ item: FeedItem, source: FeedSource, fetchedAt: Date, campaign: ResetCampaignContext? = nil) -> [ResetEvent] {
         let combined = "\(item.title) \(item.body)"
         let lower = normalize(combined)
-        guard matches(#"\breset(?:s|ting)?\b|额度重置|重置机会|手动重置"#, lower) else { return [] }
         let originalURL = originalPostURL(in: combined)
         let postURL = item.url.flatMap { isPost($0) ? $0 : nil } ?? originalURL ?? item.url
         let trustedAuthor = postURL.map { isPost($0) && $0.path.lowercased().hasPrefix("/thsottiaux/status/") } == true
+        let campaign = trustedAuthor && campaign?.postID == postURL?.lastPathComponent ? campaign : nil
+        guard matches(#"\breset(?:s|ting)?\b|额度重置|重置机会|手动重置"#, lower) || campaign != nil else { return [] }
         let official = source.kind == .officialFeed && ["openai.com", "status.openai.com"].contains(source.url.host?.lowercased() ?? "")
         let relay = ["modelyard", "codex-reset"].contains(source.id) && !(postURL.map(isPost) == true && !trustedAuthor)
         let trusted = trustedAuthor || official || relay
         let rank = official || (trustedAuthor && source.id == "codex-reset-json") ? 3 : (trustedAuthor ? 2 : (relay ? 1 : 0))
-        let products = productNames(lower)
+        let explicitProducts = productNames(lower)
+        let products = explicitProducts.isEmpty && campaign != nil ? ["codex", "chatgpt-work"] : explicitProducts
         guard !products.isEmpty || trustedAuthor else { return [] }
         let globalGrant = isGrant(lower)
         let body = item.body.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -39,7 +41,8 @@ struct AnnouncementClassifier {
             // Questions, speculation, grants, future promises and intervening topics never do.
             let contextualPropagation = resetContext != nil && matches(#"^\s*(?:all|fully) propagated[.!。！]?\s*$"#, sentence)
             let hasReset = matches(#"\breset(?:s|ting)?\b|额度重置|重置机会|手动重置"#, sentence)
-            let relevant = hasReset || grant || contextualPropagation
+            let contextualLanding = campaign?.parent != nil && matches(#"^\s*landing\s+(?:within|sometime|today|tomorrow|by|in)\b"#, sentence)
+            let relevant = hasReset || grant || contextualPropagation || contextualLanding
             guard relevant else { continue }
             if matches(#"password|factory reset|reset (?:your |the )?(?:password|settings|context)|重置密码"#, sentence) { continue }
             let cancelled = matches(#"cancelled|canceled|called off|no longer planned|no (?:new |more |global )?(?:banked )?resets?\b|no reset is planned|will not (?:happen|reset|receive|get)|won't (?:reset|receive|get)|不会重置|预告取消"#, sentence)
@@ -67,10 +70,14 @@ struct AnnouncementClassifier {
             } else if !grant && completed && (!future || processed || matches(#"fully propagated|resets? all propagated|already reset|have been reset"#, sentence)) {
                 let completionText = contextualPropagation ? (resetContext.map { "\($0) \(sentence)" } ?? sentence) : sentence
                 claims.append(Claim(text: completionText, grant: false, stage: "completed", confirmed: trusted))
-            } else if !grant && promise {
+            } else if !grant && (promise || contextualLanding) {
                 claims.append(Claim(text: sentence, grant: false, stage: "preview", confirmed: trusted))
             }
             if hasReset && !grant && !future && !promise { previousAutomaticReset = sentence }
+        }
+
+        if claims.isEmpty && campaign != nil && ResetCampaignContext.isDelivery(text) {
+            claims.append(Claim(text: text, grant: false, stage: "completed", confirmed: true))
         }
 
         // Cancellation applies to the same type; a different new action is kept separately.

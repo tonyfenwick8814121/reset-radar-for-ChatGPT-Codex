@@ -32,28 +32,25 @@ final class AIReviewCoordinator: ObservableObject {
             state.records[index].failure = .network
             state.records[index].retryAt = Date().addingTimeInterval(600)
         }
-        // Default-off installs never access credentials or call a model.
-        if state.enabled {
-            do { hasKey = try keys.read() != nil }
-            catch { message = .keychain }
-            if !hasKey { state.authorizationRequired = true; message = .unauthorized }
-        }
+        // Loading public evidence must never wait for Keychain approval. Read credentials on demand.
+        await ingest([])
     }
 
     @discardableResult
     func authorize(key: String, consent: Bool) async -> Bool {
         guard consent else { message = .consentRequired; return false }
         guard !isConfiguring else { return false }
-        authorizationSucceeded = false
-        var key = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        if key.isEmpty {
-            do { key = try keys.read() ?? "" }
-            catch { message = .keychain; return false }
-        }
-        guard !key.isEmpty, key.count <= 512, !key.contains(where: { $0.isWhitespace || $0.isNewline }) else { message = .unauthorized; return false }
         isConfiguring = true
         defer { isConfiguring = false }
+        authorizationSucceeded = false
         let token = generation
+        var key = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if key.isEmpty {
+            do { key = try await readKey() ?? "" }
+            catch { message = .keychain; return false }
+        }
+        guard token == generation else { return false }
+        guard !key.isEmpty, key.count <= 512, !key.contains(where: { $0.isWhitespace || $0.isNewline }) else { message = .unauthorized; return false }
         do {
             try await client.validateKey(key)
             guard token == generation else { return false }
@@ -99,16 +96,30 @@ final class AIReviewCoordinator: ObservableObject {
             if let index = state.posts.firstIndex(where: { $0.id == post.id }) { state.posts[index] = post }
             else { state.posts.append(post) }
         }
-        state.posts = Array(state.posts.sorted { $0.publishedAt > $1.publishedAt }.prefix(150))
+        let anchors = state.posts.filter { post in
+            ResetCampaignContext.duration(post).map { post.publishedAt <= now && now.timeIntervalSince(post.publishedAt) < Double($0) * 86_400 } == true
+        }.sorted { $0.publishedAt > $1.publishedAt }.prefix(2)
+        let anchorIDs = Set(anchors.map(\.id))
+        state.posts = Array(state.posts.filter { !anchorIDs.contains($0.id) }.sorted { $0.publishedAt > $1.publishedAt }.prefix(150 - anchors.count)) + anchors
         // Initial authorization reviews the latest 24 hours, not weeks of old posts.
         for post in state.posts where post.publishedAt >= now.addingTimeInterval(-86_400) && post.publishedAt <= now.addingTimeInterval(300) {
             let input = input(for: post)
             if !state.records.contains(where: { $0.fingerprint == input.fingerprint }) {
-                state.records.append(AIReviewRecord(fingerprint: input.fingerprint, postID: post.id))
+                var record = AIReviewRecord(fingerprint: input.fingerprint, postID: post.id)
+                if let legacy = state.records.first(where: { $0.fingerprint == input.legacyFingerprint }) {
+                    record.acknowledged = legacy.acknowledged; record.notifiedAt = legacy.notifiedAt
+                    let needsContextReview = input.campaign != nil || ResetCampaignContext.isReviewCandidate(post.text) ||
+                        input.parent.map { ResetCampaignContext.isReviewCandidate($0.text) } == true
+                    if legacy.status == .success && !needsContextReview, let analysis = legacy.analysis {
+                        record = legacy; record.fingerprint = input.fingerprint
+                        record.comparison = Self.compare(analysis, rules: ruleClaims(for: post, now: now), input: input)
+                    }
+                }
+                state.records.append(record)
             } else if let index = state.records.firstIndex(where: { $0.fingerprint == input.fingerprint }),
                       let analysis = state.records[index].analysis, state.records[index].status == .success {
                 // Rule upgrades may change the comparison without another model call.
-                state.records[index].comparison = Self.compare(analysis, rules: ruleClaims(for: post, now: now))
+                state.records[index].comparison = Self.compare(analysis, rules: ruleClaims(for: post, now: now), input: input)
             }
         }
         let known = Set(state.posts.map(\.id))
@@ -143,7 +154,9 @@ final class AIReviewCoordinator: ObservableObject {
     var recentRecords: [AIReviewRecord] {
         state.records.filter { record in
             guard let post = state.posts.first(where: { $0.id == record.postID }) else { return false }
-            return record.fingerprint == input(for: post).fingerprint
+            let input = input(for: post)
+            if record.fingerprint == input.fingerprint { return true }
+            return record.fingerprint == input.legacyFingerprint && !state.records.contains { $0.fingerprint == input.fingerprint }
         }.sorted { first, second in
             let a = state.posts.first { $0.id == first.postID }?.publishedAt ?? .distantPast
             let b = state.posts.first { $0.id == second.postID }?.publishedAt ?? .distantPast
@@ -154,13 +167,16 @@ final class AIReviewCoordinator: ObservableObject {
     var attentionRecord: AIReviewRecord? {
         guard state.enabled else { return nil }
         return freshRecords.first { record in
-            record.status == .success && [.possibleMiss, .disagreement].contains(record.comparison) && !record.acknowledged
+            record.status == .success && [.possibleMiss, .disagreement, .inconclusive].contains(record.comparison) && !record.acknowledged
         }
     }
 
     var needsAttention: Bool { attentionRecord != nil }
 
     func attentionTitle(_ locale: AppLocale) -> String {
+        if attentionRecord?.comparison == .inconclusive {
+            return locale == .zhHans ? "重置相关信息不足 · 待核对" : "Reset context incomplete · Needs review"
+        }
         if attentionRecord?.comparison == .possibleMiss {
             return locale == .zhHans ? "AI 发现重置线索 · 待核对" : "AI reset finding · Needs review"
         }
@@ -204,7 +220,7 @@ final class AIReviewCoordinator: ObservableObject {
         if !state.enabled { return zh ? "未启用" : "Off" }
         if let message { return message.message(locale) }
         if state.authorizationRequired { return AIReviewFailure.unauthorized.message(locale) }
-        if needsAttention { return zh ? "有分歧 · 待核对" : "Disagreement · Needs review" }
+        if needsAttention { return attentionRecord?.comparison == .inconclusive ? (zh ? "信息不足 · 待核对" : "Insufficient context · Needs review") : (zh ? "有分歧 · 待核对" : "Disagreement · Needs review") }
         if isAnalyzing { return zh ? "正在独立分析" : "Analyzing independently" }
         if let until = state.cooldownUntil, until > Date() { return zh ? "免费服务冷却中" : "Free service cooling down" }
         if state.requests.filter({ $0 > Date().addingTimeInterval(-86_400) }).count >= Self.dailyRequestLimit { return zh ? "近 24 小时请求上限已到，稍后继续" : "24-hour request cap reached; waiting" }
@@ -214,24 +230,38 @@ final class AIReviewCoordinator: ObservableObject {
         return freshRecords.isEmpty ? (zh ? "等待新帖" : "Waiting for new posts") : (zh ? "复核完成 · 结论一致" : "Reviewed · Agreement")
     }
 
-    static func compare(_ analysis: AIAnalysis, rules: [ResetEvent]) -> AIComparison {
+    static func compare(_ analysis: AIAnalysis, rules: [ResetEvent], input: AIReviewInput? = nil) -> AIComparison {
         let ruleClaims = Set(rules.filter(\.confirmedAnnouncement).compactMap { event -> String? in
             guard let stage = event.announcementStage, ["preview", "rollingOut", "available", "completed", "cancelled"].contains(stage) else { return nil }
             let type = event.kind == .bankedResetGrant ? "banked" : "automatic"
             return type + ":" + stage
         })
         let aiClaims = Set(analysis.claims.filter { $0.explicit }.map(\.signature))
+        let contextualCandidate = input.map { value in
+            value.campaign != nil && ResetCampaignContext.isReviewCandidate(value.campaign?.parent?.text ?? value.post.text)
+        } ?? false
+        let unresolvedCampaign = contextualCandidate || rules.contains { event in
+            event.evidence.contains { $0.url?.path.hasPrefix("/thsottiaux/status/") == true && ResetCampaignContext.isReviewCandidate($0.excerpt) }
+        }
+        if (analysis.contextMissing && (!ruleClaims.isEmpty || unresolvedCampaign)) ||
+            (aiClaims.isEmpty && ruleClaims.isEmpty && unresolvedCampaign) { return .inconclusive }
         if aiClaims == ruleClaims { return .agreement }
         if !Set(analysis.claims.filter(\.actionable).map(\.signature)).subtracting(ruleClaims).isEmpty, ruleClaims.isEmpty { return .possibleMiss }
         return .disagreement
     }
 
     private func input(for post: AIOriginalPost) -> AIReviewInput {
-        AIReviewInput(post: post, parent: state.posts.first { $0.id == post.replyParentID && $0.publishedAt <= post.publishedAt })
+        AIReviewInput(post: post, parent: state.posts.first { $0.id == post.replyParentID && $0.publishedAt <= post.publishedAt },
+                      campaign: ResetCampaignContext(post: post, originals: state.posts))
+    }
+
+    func campaignContext(for postID: String) -> ResetCampaignContext? {
+        state.posts.first { $0.id == postID }.flatMap { ResetCampaignContext(post: $0, originals: state.posts) }
     }
 
     private func ruleClaims(for post: AIOriginalPost, now: Date) -> [ResetEvent] {
-        classifier.classifyAll(post.feedItem, source: FeedSource.defaults.first { $0.id == "codex-reset-json" }!, fetchedAt: now)
+        classifier.classifyAll(post.feedItem, source: FeedSource.defaults.first { $0.id == "codex-reset-json" }!, fetchedAt: now,
+                               campaign: ResetCampaignContext(post: post, originals: state.posts))
     }
 
     private func processQueue(token: UUID) async {
@@ -248,23 +278,34 @@ final class AIReviewCoordinator: ObservableObject {
             }), let post = state.posts.first(where: { $0.id == state.records[index].postID }) else { return }
             let input = input(for: post)
             let key: String
-            do { guard let stored = try keys.read() else { throw AIReviewFailure.unauthorized }; key = stored }
-            catch { state.authorizationRequired = true; message = (error as? AIReviewFailure) ?? .keychain; _ = await persist(); return }
+            do { guard let stored = try await readKey() else { throw AIReviewFailure.unauthorized }; key = stored }
+            catch {
+                guard token == generation, state.enabled, !Task.isCancelled else { return }
+                state.authorizationRequired = true; message = (error as? AIReviewFailure) ?? .keychain; _ = await persist(); return
+            }
+            guard token == generation, state.enabled, !Task.isCancelled else { return }
+            // A feed refresh can replace this input while Keychain is waiting for the user.
+            guard let currentPost = state.posts.first(where: { $0.id == post.id }),
+                  self.input(for: currentPost).fingerprint == input.fingerprint,
+                  let index = state.records.firstIndex(where: { $0.id == input.fingerprint }) else { continue }
+            let requestAt = Date()
+            guard currentPost.publishedAt >= requestAt.addingTimeInterval(-86_400) else { continue }
             isAnalyzing = true
-            state.records[index].status = .analyzing; state.records[index].attempts += 1; state.requests.append(now)
+            state.records[index].status = .analyzing; state.records[index].attempts += 1; state.requests.append(requestAt)
             guard await persist() else { return }
+            guard token == generation, state.enabled, !Task.isCancelled else { return }
             do {
                 let (analysis, model) = try await client.analyze(input, key: key)
                 guard token == generation, state.enabled, !Task.isCancelled,
                       let current = state.records.firstIndex(where: { $0.id == input.fingerprint }) else { return }
                 let rules = ruleClaims(for: post, now: now)
-                let comparison = Self.compare(analysis, rules: rules)
+                let comparison = Self.compare(analysis, rules: rules, input: input)
                 state.records[current].status = .success; state.records[current].checkedAt = Date()
                 state.records[current].analysis = analysis; state.records[current].model = model
                 state.records[current].comparison = comparison; state.records[current].failure = nil
                 state.records[current].diagnostic = nil
                 message = nil
-                let notify = comparison != .agreement && analysis.claims.contains(where: \.actionable) &&
+                let notify = comparison != .agreement && (comparison == .inconclusive || analysis.claims.contains(where: \.actionable)) &&
                     !state.records[current].acknowledged && state.records[current].notifiedAt == nil &&
                     post.publishedAt >= Date().addingTimeInterval(-86_400) &&
                     state.posts.first(where: { $0.id == post.id }).map({ self.input(for: $0).fingerprint == input.fingerprint }) == true
@@ -290,5 +331,10 @@ final class AIReviewCoordinator: ObservableObject {
     @discardableResult private func persist() async -> Bool {
         do { try await store.saveAIReview(state); return true }
         catch { message = .storage; return false }
+    }
+
+    private func readKey() async throws -> String? {
+        let keys = keys
+        return try await Task.detached(priority: .userInitiated) { try keys.read() }.value
     }
 }

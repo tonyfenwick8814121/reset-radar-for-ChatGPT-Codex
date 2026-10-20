@@ -15,6 +15,52 @@ final class RuleNotificationTests: XCTestCase {
         return (model, directory)
     }
 
+    func testOctober20CampaignDeliveryNotifiesOnce() async throws {
+        let (model, dir) = makeModel()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        RuleFeedProtocol.posts = [
+            ("2106845241357824205", "Over the next 28 days, each day we’ll either ship one thing that is a clear improvement and relevant for most codex/work users or ship a full reset. Let the improvements begin."),
+            ("2112432076767289678", "Day 15/ Nevermind, we're still cooking... and reset. Enjoy. https://t.co/RZ9WhtI802")
+        ]
+        var completions = 0
+        model.onNewCompletedReset = { _ in completions += 1 }
+        await model.refresh()
+        await model.refresh()
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertEqual(model.activeEvent?.id, "status-2112432076767289678")
+        XCTAssertNotNil(model.activeEvent?.completionNotifiedAt)
+        XCTAssertNil(model.activeEvent?.countdownAt)
+    }
+
+    func testUpgradeBackfillsCampaignCompletionFromCachedOriginalsOnlyOnce() async throws {
+        let (model, dir) = makeModel()
+        defer { model.stop(); try? FileManager.default.removeItem(at: dir) }
+        let now = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 120)
+        let anchor = AIOriginalPost(FeedItem(id: "1", title: "", body: "Over the next 28 days, each day we’ll either ship one thing that is a clear improvement and relevant for most codex/work users or ship a full reset.", url: URL(string: "https://x.com/thsottiaux/status/1"), publishedAt: now.addingTimeInterval(-15 * 86_400)))!
+        let current = FeedItem(id: "20", title: "", body: "Day 15/ Nevermind, we're still cooking... and reset. Enjoy.", url: URL(string: "https://x.com/thsottiaux/status/20"), publishedAt: now)
+        let source = FeedSource.defaults.first { $0.id == "codex-reset-json" }!
+        var legacy = try XCTUnwrap(AnnouncementClassifier().classify(current, source: source, fetchedAt: now))
+        legacy.classifierVersion = 8
+        var dismissed = legacy; dismissed.id = "dismissed"; dismissed.state = .dismissed
+        var ai = AIReviewState(); ai.posts = [anchor, AIOriginalPost(current)!]
+        let store = LocalStore(directory: dir)
+        try await store.saveAIReview(ai); try await store.saveEvents([legacy, dismissed])
+        var completions = 0; model.onNewCompletedReset = { _ in completions += 1 }
+        await model.start().value
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(model.activeEvent?.state, .announcedComplete)
+        XCTAssertEqual(model.activeEvent?.firstSeenAt, legacy.firstSeenAt)
+        XCTAssertEqual(model.events.first { $0.id == "dismissed" }?.state, .dismissed)
+        model.stop()
+        let (restarted, _) = makeModel(directory: dir)
+        defer { restarted.stop() }
+        restarted.onNewCompletedReset = { _ in completions += 1 }
+        await restarted.start().value
+        XCTAssertEqual(completions, 1)
+        XCTAssertNotNil(restarted.activeEvent?.completionNotifiedAt)
+    }
+
     func testDeadlinePreviewCompletesEarlyWithoutCreatingAnotherOpportunity() async throws {
         let (model, dir) = makeModel()
         defer { try? FileManager.default.removeItem(at: dir) }

@@ -188,6 +188,98 @@ final class AIReviewTests: XCTestCase {
         XCTAssertTrue(rules.contains { $0.confirmedAnnouncement && $0.announcementStage == "preview" })
     }
 
+    func testMissingContextForResetCandidateIsNotAnAgreement() {
+        let item = post("2112432076767289678", "Day 15/ Nevermind, we're still cooking... and reset. Enjoy.")
+        let rules = AnnouncementClassifier().classifyAll(item, source: FeedSource.defaults.first { $0.id == "codex-reset-json" }!, fetchedAt: Date())
+        XCTAssertNotEqual(AIReviewCoordinator.compare(AIAnalysis(claims: [], contextMissing: true), rules: rules), .agreement)
+    }
+
+    func testInconclusiveCampaignResultNotifiesOnceWithoutConfirmedAIClaim() async throws {
+        let client = ReviewStub(); await client.setAnalysis(AIAnalysis(claims: [], contextMissing: true))
+        let (reviewer, _, keys, store) = try await setup(client: client)
+        let anchor = post("1", "Over the next 28 days, each day we’ll either ship one thing that is a clear improvement and relevant for most codex/work users or ship a full reset.", date: Date().addingTimeInterval(-15 * 86_400))
+        let current = post("20", "Day 15/ and reset. Enjoy.")
+        var notices = 0; reviewer.onReviewNotice = { notices += 1 }
+        await reviewer.ingest([anchor, current]); _ = await authorize(reviewer); await finish(reviewer)
+        XCTAssertEqual(reviewer.recentRecords.first?.comparison, .inconclusive)
+        XCTAssertEqual(notices, 1)
+        XCTAssertTrue(reviewer.needsAttention)
+        XCTAssertTrue(reviewer.attentionTitle(.zhHans).contains("信息不足"))
+        XCTAssertTrue(reviewer.attentionTitle(.en).contains("incomplete"))
+        let sent = await client.inputs
+        XCTAssertEqual(sent.first?.campaign?.announcement.id, anchor.id)
+        let restarted = AIReviewCoordinator(store: store, client: client, keys: keys)
+        restarted.onReviewNotice = { notices += 1 }
+        await restarted.load(); await restarted.ingest([anchor, current]); restarted.kick(); await finish(restarted)
+        XCTAssertEqual(notices, 1)
+        await restarted.acknowledge(try XCTUnwrap(restarted.attentionRecord?.id))
+        XCTAssertFalse(restarted.needsAttention)
+    }
+
+    func testUnrelatedMissingContextDoesNotCreateReviewNoise() async throws {
+        let analysis = AIAnalysis(claims: [], contextMissing: true)
+        for text in ["We are still cooking.", "People are asking me for resets on the street now.", "Day 15/ We shipped cache improvements."] {
+            let item = post("20", text)
+            let rules = AnnouncementClassifier().classifyAll(item, source: FeedSource.defaults.first { $0.id == "codex-reset-json" }!, fetchedAt: Date())
+            XCTAssertEqual(AIReviewCoordinator.compare(analysis, rules: rules), .agreement, text)
+        }
+    }
+
+    func testUnchangedLegacyHistoryAndUnrelatedSuccessAreReusedWithoutCloudCalls() async throws {
+        let old = try XCTUnwrap(AIOriginalPost(post("19", "Previous unrelated update", date: Date().addingTimeInterval(-90_000))))
+        let fresh = try XCTUnwrap(AIOriginalPost(post("20", "New unrelated update")))
+        var state = AIReviewState(); state.posts = [old, fresh]
+        for original in [old, fresh] {
+            let input = AIReviewInput(post: original, parent: nil)
+            var record = AIReviewRecord(fingerprint: input.legacyFingerprint, postID: original.id)
+            record.status = .success; record.analysis = AIAnalysis(claims: [], contextMissing: true); record.comparison = .agreement
+            state.records.append(record)
+        }
+        let (reviewer, client, _, _) = try await setup(saved: state)
+        await reviewer.ingest([old.feedItem, fresh.feedItem]); _ = await authorize(reviewer); await finish(reviewer)
+        XCTAssertEqual(reviewer.recentRecords.count, 2)
+        let count = await inputCount(client); XCTAssertEqual(count, 0)
+    }
+
+    func testEnabledCacheLoadsWithoutKeychainAndReadsOffMainThreadOnlyForAnalysis() async throws {
+        var state = AIReviewState(); state.enabled = true; state.keyConfigured = true
+        let (reviewer, _, keys, _) = try await setup(key: "test-key", saved: state)
+        XCTAssertEqual(keys.reads, 0)
+        await reviewer.ingest([post()]); reviewer.kick(); await finish(reviewer)
+        XCTAssertGreaterThan(keys.reads, 0)
+        XCTAssertFalse(keys.lastReadWasOnMainThread)
+    }
+
+    func testActiveCampaignAnchorSurvivesBusyFeedRetentionWithoutAnyModelCall() async throws {
+        let (reviewer, client, keys, _) = try await setup()
+        let anchor = post("1", "Over the next 28 days, each day we’ll either ship one thing that is a clear improvement and relevant for most codex/work users or ship a full reset.", date: Date().addingTimeInterval(-15 * 86_400))
+        let current = post("2", "Day 15/ and reset. Enjoy.")
+        let others = (100..<265).map { post(String($0), "Other public update", date: Date().addingTimeInterval(-1000 - Double($0))) }
+        await reviewer.ingest([anchor, current] + others)
+        XCTAssertEqual(reviewer.state.posts.count, 150)
+        XCTAssertNotNil(reviewer.campaignContext(for: current.id))
+        let count = await inputCount(client); XCTAssertEqual(count, 0)
+        XCTAssertEqual(keys.reads, 0)
+    }
+
+    func testStartupQueuesFreshLegacyCampaignReviewWithoutWaitingForFeedCheck() async throws {
+        let anchor = try XCTUnwrap(AIOriginalPost(post("1", "Over the next 28 days, each day we’ll either ship one thing that is a clear improvement and relevant for most codex/work users or ship a full reset.", date: Date().addingTimeInterval(-15 * 86_400))))
+        let current = try XCTUnwrap(AIOriginalPost(post("20", "Day 15/ and reset. Enjoy.")))
+        let legacyInput = AIReviewInput(post: current, parent: nil)
+        var legacy = AIReviewRecord(fingerprint: legacyInput.legacyFingerprint, postID: current.id)
+        legacy.status = .success; legacy.analysis = AIAnalysis(claims: [], contextMissing: true); legacy.comparison = .agreement
+        var state = AIReviewState(); state.enabled = true; state.keyConfigured = true
+        state.posts = [anchor, current]; state.records = [legacy]
+        let client = ReviewStub(); await client.setAnalysis(AIAnalysis(claims: [], contextMissing: true))
+        let (reviewer, _, keys, _) = try await setup(client: client, key: "test-key", saved: state)
+        XCTAssertEqual(reviewer.recentRecords.first?.status, .pending)
+        XCTAssertEqual(keys.reads, 0)
+        reviewer.kick(); await finish(reviewer)
+        XCTAssertEqual(reviewer.recentRecords.first?.comparison, .inconclusive)
+        XCTAssertTrue(reviewer.needsAttention)
+        let count = await inputCount(client); XCTAssertEqual(count, 1)
+    }
+
     func testPropagatedFollowupAndBankedCompensationAgreeWithRules() {
         let source = FeedSource.defaults.first { $0.id == "codex-reset-json" }!
         let cases: [(String, AIClaim)] = [
@@ -276,18 +368,45 @@ final class AIReviewTests: XCTestCase {
         XCTAssertNil(keys.key); let count = await inputCount(client); XCTAssertEqual(count, 1)
     }
 
+    func testPostEditedDuringKeychainWaitDoesNotSendStaleInput() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("rr-ai-" + UUID().uuidString)
+        directories.append(dir)
+        let store = LocalStore(directory: dir)
+        var state = AIReviewState(); state.enabled = true; state.keyConfigured = true
+        state.posts = [try XCTUnwrap(AIOriginalPost(post()))]
+        try await store.saveAIReview(state)
+        let started = expectation(description: "Background key read started")
+        let keys = WaitingAIKeys(started: started)
+        defer { keys.release.signal() }
+        let client = ReviewStub()
+        let reviewer = AIReviewCoordinator(store: store, client: client, keys: keys)
+        await reviewer.load(); reviewer.kick()
+        let wait = await XCTWaiter.fulfillment(of: [started], timeout: 2)
+        XCTAssertEqual(wait, .completed)
+        await reviewer.ingest([post("10", "New product release, no quota announcement.")])
+        keys.release.signal()
+        await finish(reviewer)
+        let inputs = await client.inputs
+        XCTAssertEqual(inputs.map(\.post.text), ["New product release, no quota announcement."])
+        reviewer.stop()
+    }
+
     func testRequestIsIndependentFreeOnlyStructuredAndNoKeyInBody() throws {
         let input = AIReviewInput(post: try XCTUnwrap(AIOriginalPost(post())), parent: nil)
         let body = try OpenRouterReviewClient.requestBody(input)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
-        XCTAssertEqual(json["model"] as? String, "openrouter/free")
-        XCTAssertNil(json["models"]); XCTAssertNil(json["tools"]); XCTAssertNil(json["plugins"])
+        XCTAssertEqual(json["models"] as? [String], ["xingchen-agi/xing4.0-29b-a4b:free", "dots-studio/dots-3-note-preview:free"])
+        XCTAssertNil(json["model"]); XCTAssertNil(json["tools"]); XCTAssertNil(json["plugins"])
         XCTAssertEqual((json["response_format"] as? [String: Any])?["type"] as? String, "json_schema")
         XCTAssertFalse(String(data: body, encoding: .utf8)!.contains("test-key"))
         let messages = try XCTUnwrap(json["messages"] as? [[String: String]])
         XCTAssertFalse(messages[1]["content"]!.contains("rule"))
         XCTAssertEqual(json["max_tokens"] as? Int, 4096)
-        XCTAssertEqual((json["reasoning"] as? [String: Any])?["effort"] as? String, "low")
+        XCTAssertEqual((json["reasoning"] as? [String: Any])?["enabled"] as? Bool, false)
+        let provider = try XCTUnwrap(json["provider"] as? [String: Any])
+        XCTAssertEqual(provider["require_parameters"] as? Bool, true)
+        let prices = try XCTUnwrap(provider["max_price"] as? [String: Int])
+        XCTAssertEqual(prices, ["prompt": 0, "completion": 0])
     }
 
     func testDecodeRejectsInventedQuoteTimeAndTruncatedOutput() throws {
@@ -375,10 +494,27 @@ final class AIReviewTests: XCTestCase {
 private final class MemoryAIKeys: AIKeyStoring, @unchecked Sendable {
     var key: String?
     var reads = 0
+    var lastReadWasOnMainThread = false
     init(_ key: String?) { self.key = key }
-    func read() throws -> String? { reads += 1; return key }
+    func read() throws -> String? { reads += 1; lastReadWasOnMainThread = Thread.isMainThread; return key }
     func save(_ key: String) throws { self.key = key }
     func remove() throws { key = nil }
+}
+
+private final class WaitingAIKeys: AIKeyStoring, @unchecked Sendable {
+    let release = DispatchSemaphore(value: 0)
+    private let started: XCTestExpectation
+    private var firstRead = true
+    init(started: XCTestExpectation) { self.started = started }
+    func read() throws -> String? {
+        if firstRead {
+            firstRead = false; started.fulfill()
+            guard release.wait(timeout: .now() + 3) == .success else { throw AIReviewFailure.keychain }
+        }
+        return "test-key"
+    }
+    func save(_ key: String) throws {}
+    func remove() throws {}
 }
 
 private actor ReviewStub: AIReviewServing {
@@ -440,7 +576,7 @@ final class OpenRouterReviewClientTests: XCTestCase {
     }
 
     func testServiceRequestAndQuotaFailuresAreDistinctAndSanitized() async throws {
-        for (status, failure) in [(503, AIReviewFailure.serviceUnavailable), (502, .serviceUnavailable), (400, .requestRejected), (402, .quotaUnavailable)] {
+        for (status, failure) in [(404, AIReviewFailure.serviceUnavailable), (503, .serviceUnavailable), (502, .serviceUnavailable), (400, .requestRejected), (402, .quotaUnavailable)] {
             let client = client(); AIHTTPStub.status = status
             AIHTTPStub.data = Data(#"{"error":{"message":"do not echo test-key"}}"#.utf8)
             do { try await client.validateKey("test-key"); XCTFail("Should fail") }
@@ -451,6 +587,14 @@ final class OpenRouterReviewClientTests: XCTestCase {
                 XCTAssertFalse(String(describing: typed).contains("test-key"))
             }
         }
+    }
+
+    func testHistoricalEndpoint404DoesNotDisplayAsMalformedAnswer() {
+        var record = AIReviewRecord(fingerprint: "old", postID: "10", status: .failed, failure: .malformedResponse,
+                                    diagnostic: AIReviewDiagnostic(httpStatus: 404))
+        XCTAssertEqual(record.displayedFailure, .serviceUnavailable)
+        record.diagnostic = AIReviewDiagnostic(httpStatus: 200)
+        XCTAssertEqual(record.displayedFailure, .malformedResponse)
     }
 
     func testDecodeDifferentiatesTruncationEmptyFormatAndEvidence() throws {
