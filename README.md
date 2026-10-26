@@ -15,7 +15,7 @@
 
 ### 下载与环境
 
-**[下载 v0.4.3 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.3/Reset-Radar-0.4.3-arm64.zip)**
+**[下载 v0.4.4 · Apple 芯片版](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.4/Reset-Radar-0.4.4-arm64.zip)**
 
 需要 **macOS 14+、Apple 芯片（M 系列）和网络连接**。解压后将 `Reset Radar.app` 拖入“应用程序”并打开，无需安装开发工具。
 
@@ -23,11 +23,10 @@
 
 ### 版本更新
 
-**v0.4.3 · 2026-10-20**
+**v0.4.4 · 2026-10-26**
 
-- 修复连续活动中简短重置公告的漏报，结合作者有效期内的活动原文和直接回复理解上下文。
-- 重置相关信息不足时显示“待核对”，避免把双方都未判断出来显示成“结论一致”。
-- 升级补发近期漏掉的完成通知一次；缓存、已处理记录和免费请求上限保留。
+- 修复窗口操作卡顿和持续高 CPU 占用，避免每秒刷新时反复解析 AI 历史。
+- 数据变化后立即更新显示；倒计时、24小时过期、监测和提醒规则保持。
 
 可选 AI 交叉验证默认关闭，配置方式见[说明](docs/AI_REVIEW.md)。
 
@@ -46,7 +45,7 @@ A free macOS menu-bar app that monitors public ChatGPT / Codex quota reset annou
 
 ### Download & requirements
 
-**[Download v0.4.3 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.3/Reset-Radar-0.4.3-arm64.zip)**
+**[Download v0.4.4 · Apple silicon](https://github.com/tonyfenwick8814121/reset-radar-for-ChatGPT-Codex/releases/download/v0.4.4/Reset-Radar-0.4.4-arm64.zip)**
 
 Requires **macOS 14+, Apple silicon (M series) and internet access**. Unzip, drag `Reset Radar.app` into Applications and open it. No developer tools required.
 
@@ -54,11 +53,10 @@ This preview is not Developer ID signed or notarized; macOS may block the first 
 
 ### Updates
 
-**v0.4.3 · 2026-10-20**
+**v0.4.4 · 2026-10-26**
 
-- Fixed missed concise campaign reset announcements using the author's active public pledge and direct replies as context.
-- Incomplete reset-related context now needs review, instead of being shown as agreement when neither check reached a conclusion.
-- Backfills one recent missed completion notice on upgrade, preserving caches, handled records and free request limits.
+- Fixed sluggish window controls and sustained high CPU usage by reusing unchanged AI history selections.
+- Display updates when data changes; countdowns, 24-hour expiry, monitoring and notification rules are preserved.
 
 Optional AI cross-check is off by default. [Setup guide](docs/AI_REVIEW.md)
 

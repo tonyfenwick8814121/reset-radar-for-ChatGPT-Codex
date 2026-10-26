@@ -3,7 +3,9 @@ import Foundation
 @MainActor
 final class AIReviewCoordinator: ObservableObject {
     static let dailyRequestLimit = 20
-    @Published private(set) var state = AIReviewState()
+    @Published private(set) var state = AIReviewState() {
+        didSet { cachedRecentRecords = nil }
+    }
     @Published private(set) var isConfiguring = false
     @Published private(set) var isAnalyzing = false
     @Published private(set) var hasKey = false
@@ -17,6 +19,7 @@ final class AIReviewCoordinator: ObservableObject {
     private var task: Task<Void, Never>?
     private var generation = UUID()
     private let classifier = AnnouncementClassifier()
+    private var cachedRecentRecords: [AIReviewRecord]?
 
     init(store: LocalStore, client: any AIReviewServing = OpenRouterReviewClient(), keys: any AIKeyStoring = OpenRouterKeychain()) {
         self.store = store; self.client = client; self.keys = keys
@@ -152,7 +155,10 @@ final class AIReviewCoordinator: ObservableObject {
     }
 
     var recentRecords: [AIReviewRecord] {
-        state.records.filter { record in
+        if let cachedRecentRecords { return cachedRecentRecords }
+        // Display ticks must not reparse campaign context and hash every historical post.
+        // Only the data-dependent selection is cached; freshness is still checked against time.
+        let records = state.records.filter { record in
             guard let post = state.posts.first(where: { $0.id == record.postID }) else { return false }
             let input = input(for: post)
             if record.fingerprint == input.fingerprint { return true }
@@ -162,6 +168,8 @@ final class AIReviewCoordinator: ObservableObject {
             let b = state.posts.first { $0.id == second.postID }?.publishedAt ?? .distantPast
             return a > b
         }
+        cachedRecentRecords = records
+        return records
     }
 
     var attentionRecord: AIReviewRecord? {

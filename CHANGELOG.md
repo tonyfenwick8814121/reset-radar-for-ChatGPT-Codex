@@ -1,5 +1,15 @@
 # 版本记录 · Changelog
 
+## 0.4.4 — 2026-10-26
+
+- 修复操作卡顿与持续高CPU占用：窗口每秒刷新曾反复筛选AI历史、解析活动背景并计算指纹，现在仅在数据变化后重建筛选结果。
+- 帖子编辑、回复/活动背景、分析状态和已读变化仍立即更新显示；24小时有效期继续按当前时间判断，不缓存过期状态。
+- 每秒倒计时、来源查询间隔、重置判断、提醒去重及AI调用限制保持；本次修复不要求重新分析旧帖。
+
+- Fixed sluggish controls and sustained high CPU caused by repeatedly parsing and hashing AI history during display ticks.
+- Unchanged history selection is reused; edits, context, analysis results and acknowledgments invalidate it. Expiry remains time-dependent.
+- Preserves second-by-second countdowns, polling intervals, detection, notification deduplication and AI request limits. No historical reanalysis is required.
+
 ## 0.4.3 — 2026-10-20
 
 - 修复“Day 15/ … and reset. Enjoy.”等连续活动完成公告漏报：引用同一作者有效期内的活动承诺，仅在本条有肯定交付表达时判为完成，不把每天的活动承诺当作每天已重置。

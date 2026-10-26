@@ -41,6 +41,67 @@ final class AIReviewTests: XCTestCase {
         XCTAssertNil(keys.key)
     }
 
+    func testRepeatedDisplayReadsDoNotReparseUnchangedHistory() async throws {
+        let now = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+        let anchor = try XCTUnwrap(AIOriginalPost(post("1", "Over the next 28 days, each day we’ll either ship one thing that is a clear improvement and relevant for most codex/work users or ship a full reset.", date: now.addingTimeInterval(-20 * 86_400))))
+        var state = AIReviewState(); state.posts = [anchor]
+        for index in 0..<81 {
+            let text = index.isMultiple(of: 3) ? "Day 21/ and reset. Enjoy." : "Day 21/ We shipped cache improvements."
+            let date = now.addingTimeInterval(index < 39 ? -Double(index + 60) : -172_800)
+            state.posts.append(try XCTUnwrap(AIOriginalPost(post(String(index + 10), text, date: date))))
+        }
+        for original in state.posts.dropFirst().prefix(39) {
+            let input = AIReviewInput(post: original, parent: nil, campaign: ResetCampaignContext(post: original, originals: state.posts))
+            var record = AIReviewRecord(fingerprint: input.fingerprint, postID: original.id, status: .success)
+            record.analysis = AIAnalysis(claims: [], contextMissing: false)
+            state.records.append(record)
+        }
+        let (reviewer, client, keys, _) = try await setup(saved: state)
+        XCTAssertEqual(reviewer.recentRecords.count, 39)
+        let start = ContinuousClock.now
+        var count = 0
+        for _ in 0..<100 { count += reviewer.recentRecords.count }
+        let elapsed = start.duration(to: .now)
+        print("100 unchanged AI history reads: \(elapsed)")
+        XCTAssertEqual(count, 3900)
+        // A generous frame budget catches the multi-second history reparse regression.
+        XCTAssertLessThan(elapsed, .milliseconds(250))
+        let requests = await inputCount(client); XCTAssertEqual(requests, 0); XCTAssertEqual(keys.reads, 0)
+    }
+
+    func testDisplayHistoryUpdatesAfterCampaignContextAndAcknowledgmentChange() async throws {
+        let (reviewer, _, _, _) = try await setup()
+        let current = post("20", "Day 21/ and reset. Enjoy.")
+        await reviewer.ingest([current])
+        let previous = try XCTUnwrap(reviewer.recentRecords.first?.id)
+        let anchor = post("1", "Over the next 28 days, each day we’ll either ship one thing that is a clear improvement and relevant for most codex/work users or ship a full reset.", date: Date().addingTimeInterval(-20 * 86_400))
+        await reviewer.ingest([anchor])
+        let latest = try XCTUnwrap(reviewer.recentRecords.first?.id)
+        XCTAssertNotEqual(previous, latest)
+        XCTAssertEqual(reviewer.recentRecords.count, 1)
+        XCTAssertFalse(reviewer.recentRecords[0].acknowledged)
+        await reviewer.acknowledge(latest)
+        XCTAssertTrue(reviewer.recentRecords[0].acknowledged)
+        await reviewer.ingest([post("20", "Day 21/ We shipped cache improvements.", date: try XCTUnwrap(current.publishedAt))])
+        XCTAssertNotEqual(reviewer.recentRecords.first?.id, latest)
+        XCTAssertEqual(reviewer.recentRecords.count, 1)
+    }
+
+    func testCachedDisplayHistoryStillExpiresAttentionWithoutDataChanges() async throws {
+        let expiry = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) + 2)
+        let original = try XCTUnwrap(AIOriginalPost(post("20", "Landing within the next 2 hours", date: expiry.addingTimeInterval(-86_400))))
+        var record = AIReviewRecord(fingerprint: AIReviewInput(post: original, parent: nil).fingerprint, postID: original.id, status: .success)
+        record.analysis = AIAnalysis(claims: [claim(quote: original.text)], contextMissing: false)
+        var state = AIReviewState(); state.enabled = true; state.posts = [original]; state.records = [record]
+        let (reviewer, _, keys, _) = try await setup(saved: state)
+        XCTAssertTrue(reviewer.needsAttention)
+        XCTAssertEqual(reviewer.recentRecords.count, 1)
+        try await Task.sleep(for: .seconds(max(0, expiry.timeIntervalSinceNow) + 0.05))
+        XCTAssertEqual(reviewer.recentRecords.count, 1, "History remains visible")
+        XCTAssertFalse(reviewer.needsAttention, "Attention expires independently of history-cache invalidation")
+        XCTAssertEqual(keys.reads, 0)
+    }
+
     func testAuthorizedKeyStoredOnlyInSecretStore() async throws {
         let (reviewer, _, keys, store) = try await setup()
         let enabled = await authorize(reviewer); XCTAssertTrue(enabled)
